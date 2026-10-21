@@ -1,0 +1,14 @@
+import { existsSync } from 'node:fs';
+if(existsSync('.env'))process.loadEnvFile('.env');
+const {openDatabase}=await import('./database.mjs');
+const {seed}=await import('./seed.mjs');
+const {buildApp}=await import('./app.mjs');
+const demo=process.env.DEMO_MODE==='true'||(process.env.NODE_ENV!=='production'&&process.env.DEMO_MODE!=='false');
+if(demo&&process.env.NODE_ENV==='production')throw new Error('DEMO_MODE must be disabled in production');
+if(process.env.NODE_ENV==='production'&&(!process.env.DATABASE_URL||!process.env.CORS_ORIGINS))throw new Error('Production requires DATABASE_URL and CORS_ORIGINS');
+if(process.env.NODE_ENV==='production'&&!['R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET'].every(key=>process.env[key]))throw new Error('Configure Cloudflare R2 before deployment');
+const db=await openDatabase();await seed(db,{demo});
+const app=await buildApp({db,demo,logger:true});
+await app.listen({host:process.env.HOST||'127.0.0.1',port:Number(process.env.PORT||4100)});
+const stop=async()=>{await app.close();await db.close();process.exit();};
+process.on('SIGINT',stop);process.on('SIGTERM',stop);

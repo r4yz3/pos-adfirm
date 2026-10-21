@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Adfirm Micro POS</string>
+    <string name="title_activity_main">Adfirm Micro POS</string>
+    <string name="package_name">com.adfirm.micropos</string>
+    <string name="custom_url_scheme">com.adfirm.micropos</string>
+</resources>

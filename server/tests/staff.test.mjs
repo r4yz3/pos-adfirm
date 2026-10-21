@@ -1,0 +1,50 @@
+import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {openDatabase} from '../database.mjs';
+import {seed} from '../seed.mjs';
+import {buildApp} from '../app.mjs';
+import {postSale} from '../domain.mjs';
+let db,app,owner,cashier,staffId,staffToken;
+const root='/api/stores/store-main';
+const credentials={name:'New Cashier',email:'newcashier@example.test',password:'Cashier!Password123'};
+async function call(method,url,payload,token=owner){const r=await app.inject({method,url,headers:{authorization:`Bearer ${token}`},payload});return {status:r.statusCode,body:r.json()};}
+before(async()=>{db=await openDatabase({path:':memory:',url:null});await seed(db,{demo:true});app=await buildApp({db,demo:true});owner=(await call('POST','/api/auth/demo',{role:'owner'},'')).body.token;cashier=(await call('POST','/api/auth/demo',{role:'cashier'},'')).body.token;});
+after(async()=>{await app.close();await db.close();});
+test('only owners can create cashiers; no password data is exposed',async()=>{
+ assert.equal((await call('POST',root+'/staff',credentials,cashier)).status,403);
+ assert.equal((await call('GET',root+'/staff',undefined,cashier)).status,403);
+ const created=await call('POST',root+'/staff',credentials);assert.equal(created.status,200);staffId=created.body.id;
+ const list=(await call('GET',root+'/staff')).body.staff;assert.ok(list.some(s=>s.id===staffId&&s.enabled===1));assert.ok(list.every(s=>!('password_hash'in s)&&!('password'in s)));
+ const stored=await db.get('SELECT password_hash FROM users WHERE id=?',[staffId]);assert.notEqual(stored.password_hash,credentials.password);
+ assert.equal((await call('POST',root+'/staff',credentials)).status,409);
+ staffToken=(await call('POST','/api/auth/login',{email:credentials.email,password:credentials.password},'')).body.token;
+ const snap=await call('GET',root+'/snapshot',undefined,staffToken);assert.equal(snap.status,200);assert.equal(snap.body.dashboard,null);assert.ok(snap.body.products.every(p=>!('costMinor'in p)));
+ assert.equal((await call('GET','/api/stores/store-market/snapshot',undefined,staffToken)).status,403);
+});
+test('owner grants another branch then revokes only the current store',async()=>{
+ assert.equal((await call('PUT',`/api/stores/store-market/staff/${staffId}/access`,{enabled:true})).status,200);
+ assert.equal((await call('GET','/api/stores/store-market/snapshot',undefined,staffToken)).status,200);
+ const path=`${root}/staff/${staffId}/access`;assert.equal((await call('PUT',path,{enabled:false},cashier)).status,403);
+ assert.equal((await call('PUT',path,{enabled:false})).status,200);assert.equal((await call('PUT',path,{enabled:false})).status,200);
+ assert.equal((await call('GET',root+'/snapshot',undefined,staffToken)).status,403);
+ assert.equal((await call('GET','/api/stores/store-market/snapshot',undefined,staffToken)).status,200);
+ const stores=(await call('GET','/api/stores',undefined,staffToken)).body.stores;assert.equal(stores.length,1);assert.equal(stores[0].id,'store-market');
+ const p=await db.get("SELECT * FROM products WHERE store_id='store-main' LIMIT 1");
+ const input={id:randomUUID(),lines:[{productId:p.id,quantity:1,priceMinor:p.price_minor}],paymentMethod:'cash',cashMinor:100000};
+ await assert.rejects(()=>postSale(db,{id:staffId},'store-main',input),e=>e.statusCode===403);
+ assert.equal((await call('POST',root+'/sales',input,staffToken)).status,403);
+ assert.equal((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action='staff.disabled' AND store_id='store-main'")).n,1);
+ assert.equal((await call('PUT',path,{enabled:true})).status,200);assert.equal((await call('GET',root+'/snapshot',undefined,staffToken)).status,200);
+});
+test('cannot alter owner or another business cashier; strong passwords required',async()=>{
+ assert.equal((await call('PUT',root+'/staff/owner-demo/access',{enabled:false})).status,404);
+ assert.equal((await call('POST',root+'/staff',{...credentials,email:'weak@example.test',password:'short'})).status,400);
+ const admin=(await call('POST','/api/auth/demo',{role:'superadmin'},'')).body.token;
+ const business=await call('POST','/api/admin/businesses',{businessName:'Other shop',storeName:'Other branch',location:'Pasig',ownerName:'Other owner',email:'other-owner@example.test',password:'OtherOwner!Password123'},admin);assert.equal(business.status,200);
+ const other=(await call('POST','/api/auth/login',{email:'other-owner@example.test',password:'OtherOwner!Password123'},'')).body.token;
+ const otherRoot=`/api/stores/${business.body.storeId}`;
+ assert.deepEqual((await call('GET',otherRoot+'/staff',undefined,other)).body.staff,[]);
+ assert.equal((await call('PUT',otherRoot+`/staff/${staffId}/access`,{enabled:true},other)).status,404);
+ assert.equal((await call('GET',root+'/staff',undefined,other)).status,403);
+});

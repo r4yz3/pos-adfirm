@@ -1,0 +1,41 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: adfirm
+      POSTGRES_USER: adfirm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adfirm -d adfirm"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:4100:4100"
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DEMO_MODE: "false"
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://adfirm:${POSTGRES_PASSWORD}@database:5432/adfirm
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set allowed HTTPS origins}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?Set admin email}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set a 16+ character password}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?Set R2 account}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?Set R2 key}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?Set R2 secret}
+      R2_BUCKET: ${R2_BUCKET:?Set private R2 bucket}
+      VISION_ENABLED: ${VISION_ENABLED:-false}
+      VISION_OPENAI_API_KEY: ${VISION_OPENAI_API_KEY:-}
+      VISION_MODEL: ${VISION_MODEL:-gpt-4.1-mini}
+      VISION_DAILY_LIMIT: ${VISION_DAILY_LIMIT:-30}
+      IMAGE_SIGNING_SECRET: ${IMAGE_SIGNING_SECRET:?Set a random signing secret}
+    restart: unless-stopped
+volumes:
+  postgres-data:

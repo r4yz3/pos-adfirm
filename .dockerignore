@@ -1,0 +1,10 @@
+node_modules
+dist
+.tools
+.git
+.env*
+data
+artifacts
+android
+backups
+restored-data

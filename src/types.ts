@@ -1,0 +1,13 @@
+export type User={id:string;name:string;email:string;role:'owner'|'cashier'|'superadmin'};
+export type Session={token:string;user:User;demo:boolean};
+export type Store={id:string;name:string;location:string;businessId:string;businessName:string;role:'owner'|'cashier'};
+export type Product={id:string;storeId:string;name:string;barcode:string|null;category:string;unit:string;priceMinor:number;costMinor?:number;stock:number;lowStock:number;imageId:string|null;updatedAt:string};
+export type Customer={id:string;name:string;phone:string;balanceMinor:number};
+export type SaleInput={id:string;lines:{productId:string;quantity:number;priceMinor:number}[];paymentMethod:'cash'|'wallet'|'credit';cashMinor:number;customerId?:string;walletVerified:boolean;occurredAt:string;offline:boolean};
+export type Dashboard={day:string;salesMinor:number;costMinor:number;expensesMinor:number;adjustmentMinor:number;profitMinor:number;saleCount:number;utangMinor:number;lowStock:Product[];recentSales:{id:string;totalMinor:number;paymentMethod:string;occurredAt:string;status:string}[];accounts:{account:string;balanceMinor:number}[]};
+export type Billing={mode:'free'|'notice';priceMinor:number;noticeDays:number;graceDays:number;effectiveAt:string|null};
+export type Snapshot={salesEnabled?:boolean;products:Product[];customers:Customer[];dashboard:Dashboard|null;billing:Billing;syncedAt:string};
+export type CartLine={product:Product;quantity:number};
+export type Receipt={id:string;userId:string;storeId:string;storeName:string;lines:{name:string;quantity:number;priceMinor:number}[];totalMinor:number;changeMinor:number;paymentMethod:string;occurredAt:string;synced:boolean};
+export type QueueItem={id:string;userId:string;storeId:string;input:SaleInput;createdAt:string;error?:string};
+export type AdminOverview={stores:{id:string;name:string;location:string;businessName:string;saleCount:number}[];businessCount:number;billing:Billing;hardwareOrders:{id:string;productName:string;status:string;createdAt:string;storeName:string;businessName:string}[];audit:{action:string;createdAt:string}[];storage:'local'|'r2';recognitionEnabled:boolean;demo:boolean};

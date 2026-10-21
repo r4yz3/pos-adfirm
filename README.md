@@ -2,7 +2,7 @@
 
 Local pilot build 0.2.0: a white / powder-blue POS interface, Android package, API, and a separate super admin workspace.
 
-For a separate pilot database without demo shortcuts, follow [LOCAL-PILOT.md](LOCAL-PILOT.md).
+For a separate pilot database without demo shortcuts, follow [LOCAL-PILOT.md](LOCAL-PILOT.md). For the installed native CloudPanel staging service, see [CLOUDPANEL-NATIVE.md](CLOUDPANEL-NATIVE.md) and [verification status](CLOUDPANEL-STATUS.md).
 
 ## Run locally
 
@@ -20,16 +20,16 @@ The application is built with React / TypeScript and Capacitor for Android. The 
 ## Included
 
 - Owner and cashier sessions; store memberships; separate super admin account.
-- Account security: owners/cashiers use More → Account, and super admins use System. Change passwords with current-password proof (12–128 characters for the new password), or sign out other sessions. Both keep the current session and revoke other API sessions. Login and password changes serialize on the user record to prevent concurrent old-password logins from surviving a password change. Security audit records never include passwords.
+- Account security: owners/cashiers use More â†’ Account, and super admins use System. Change passwords with current-password proof (12â€“128 characters for the new password), or sign out other sessions. Both keep the current session and revoke other API sessions. Login and password changes serialize on the user record to prevent concurrent old-password logins from surviving a password change. Security audit records never include passwords.
 - Other devices learn of session revocation on their next API request. Offline records stay on those devices. Local demo shortcuts intentionally remain active in demo mode; production disables them.
-- More → Staff & access: create cashier accounts with a 12-character minimum password and enable/disable access per store within one business. Audit events track changes. Owners and cross-business accounts cannot be altered through these controls.
+- More â†’ Staff & access: create cashier accounts with a 12-character minimum password and enable/disable access per store within one business. Audit events track changes. Owners and cross-business accounts cannot be altered through these controls.
 - Revoked store access is checked again inside sale posting. On a 401/403 snapshot response the app removes the cached store snapshot and clears the visible store/cart, while preserving and allowing export of pending sales. Offline devices cannot learn of revocation until they reconnect; signed image URLs retain their existing expiry.
 - Multiple stores with separate products, prices, stock, customers, and ledgers.
-- More → Branches: owners create/edit branches in their business and compare daily sales/profit with end-of-day cash and utang balances for branches they own. New branches start empty and grant owner access only to the creator; switch branches and assign cashiers separately. Branch creation has request-ID duplicate protection.
+- More â†’ Branches: owners create/edit branches in their business and compare daily sales/profit with end-of-day cash and utang balances for branches they own. New branches start empty and grant owner access only to the creator; switch branches and assign cashiers separately. Branch creation has request-ID duplicate protection.
 - Owners can pause new sales per branch. Existing data and refunds remain accessible; retries of already-committed sales return the original result. Uncommitted offline sales remain blocked/queued until the owner resumes sales (and any other conflicts are resolved). Offline devices learn the pause on reconnect. A pause does not delete records or alter subscription settings.
 - Product creation, camera/file photos, price editing, stock receipts, and physical stock counts.
 - Native and browser barcode scanning, product search, fractional quantities, and cart.
-- Sell → Identify product: optional online photo matching for vegetables, meat/poultry, fruit, and other goods without barcodes. Cashiers confirm a catalog match and enter the quantity or scale weight; photos never determine weight or price. Manual no-barcode selection works without the vision service.
+- Sell â†’ Identify product: optional online photo matching for vegetables, meat/poultry, fruit, and other goods without barcodes. Cashiers confirm a catalog match and enter the quantity or scale weight; photos never determine weight or price. Manual no-barcode selection works without the vision service.
 - Cash with change, manually verified e-wallet payments, and customer utang.
 - Durable IndexedDB sale outbox; idempotent API posting; reconnect and retry. Queued price conflicts remain visible for owner review and export.
 - Product costs, perpetual inventory values, operating expenses, utang collection, cash/wallet balances, and daily profit.
@@ -37,7 +37,7 @@ The application is built with React / TypeScript and Capacitor for Android. The 
 - Owner-only sales history (latest 200 per date), partial item returns, explicit utang cancellation and cash/wallet refund splits, optional stock restoration, and immutable journal/audit entries. Returns use original sale allocations and do not rewrite the original sale date.
 - Daily cash counts with expected/counted/variance, required notes for differences, and a warning when later entries affect a counted day. A count does not adjust cash automatically.
 - Idempotent expenses, utang collections, refunds, and cash counts when the client supplies a stable request ID.
-- Money → Suppliers: store-specific supplier contacts, multi-product credit purchases, invoice references and due dates, partial cash/e-wallet payments, invoice lines, and payment history. Stock receipts use weighted costs; purchases add inventory/debt and payments settle debt without reducing profit again. Request IDs prevent duplicate receipt/payment posting. Up to 100 invoices are shown, open invoices first.
+- Money â†’ Suppliers: store-specific supplier contacts, multi-product credit purchases, invoice references and due dates, partial cash/e-wallet payments, invoice lines, and payment history. Stock receipts use weighted costs; purchases add inventory/debt and payments settle debt without reducing profit again. Request IDs prevent duplicate receipt/payment posting. Up to 100 invoices are shown, open invoices first.
 - Existing supplier debt remains unassigned. Funds can settle only unassigned debt; named invoices must be paid in Suppliers. Existing Restock remains available for cash/wallet/unassigned-credit receipts; never record the same delivery through both flows.
 - Owner capital, withdrawals, cash/e-wallet transfers, and unassigned supplier debt payments with audit records and request-ID duplicate protection. Payouts check recorded funds; these entries do not change profit. Funds history shows the latest 100 movements.
 - Printer inquiries sent to the platform admin; no printer required for selling.
@@ -55,12 +55,12 @@ R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=adfirm-product-images
 ```
 
-Restart the API after configuration. Admin → System shows **Cloudflare R2** when configured. No real R2 uploads have been verified without credentials.
+Restart the API after configuration. Admin â†’ System shows **Cloudflare R2** when configured. No real R2 uploads have been verified without credentials.
 
 Image flow:
 
 1. Authenticated owner uploads a still image to the API (10 MB / 24 megapixel limits).
-2. Sharp validates the decoded format, applies orientation, resizes inside 1200×1200 without enlarging, and removes EXIF metadata.
+2. Sharp validates the decoded format, applies orientation, resizes inside 1200Ã—1200 without enlarging, and removes EXIF metadata.
 3. WebP conversion starts at quality 80, reducing quality/dimensions when needed, with a hard 200 KiB output limit. Output size varies by image; smaller images stay smaller.
 4. Only the optimized `.webp` is written to R2 under a business/store-scoped key. The original is not retained.
 5. Database stores image metadata and object key. Authorized readers receive a 10-minute signed GET URL. Local development uses signed image links.
@@ -96,13 +96,13 @@ Browser tests use installed Microsoft Edge through Playwright and a separate in-
 
 `Dockerfile` serves the compiled app and API from Node. `compose.yaml` provides PostgreSQL and persistent database storage. Supply the variables required by Compose, then use `docker compose up --build`. Put the API behind HTTPS. The PostgreSQL and Docker path require verification on a Docker-capable host; local automated tests currently exercise SQLite.
 
-Production startup requires PostgreSQL, allowed origins, R2 credentials, demo mode disabled, and bootstrap admin credentials (16+ characters). Startup creates the first admin only when no users exist. Use Admin → Add business to create merchant accounts. Native Android's origin `https://localhost` must be in CORS_ORIGINS alongside the web origin.
+Production startup requires PostgreSQL, allowed origins, R2 credentials, demo mode disabled, and bootstrap admin credentials (16+ characters). Startup creates the first admin only when no users exist. Use Admin â†’ Add business to create merchant accounts. Native Android's origin `https://localhost` must be in CORS_ORIGINS alongside the web origin.
 
 ## Release boundaries
 
 This build is prepared for supervised local pilot testing. Public launch still requires:
 
-- Hosting, domain, HTTPS, PostgreSQL concurrency/load verification, live R2 testing, versioned migration deployment, tenant-policy review, monitoring, and production backup/recovery operations. An optional isolated PostgreSQL test and CI workflow are provided but have not been run against a PostgreSQL server here.
+- Hosting, domain, HTTPS, PostgreSQL concurrency/load verification, live R2 testing, versioned migration deployment, tenant-policy review, monitoring, and production backup/recovery operations. The isolated PostgreSQL concurrency test has passed on the native staging server; sustained load testing and production operations still need validation.
 - Payment gateway / Play billing, subscription authorization, and subscription access enforcement. The PHP49/store/month control schedules notice only; it never charges or locks out stores.
 - MFA, hardened native token storage / web sessions, email-based password recovery, and audited support-access workflows. Owner-assisted cashier resets and trusted local operator recovery are implemented.
 - Accountant validation, privacy/retention review, and applicable BIR/software registration and compliant invoicing. Current receipts are transaction summaries, not tax invoices. Voids, discounts/tax configuration, cashier shifts, supplier opening-debt allocation, purchase returns/corrections, and invoice pagination remain outside this pilot.
@@ -132,7 +132,7 @@ VISION_DAILY_LIMIT=30
 
 The integration sends an optimized WebP photo plus store catalog IDs, names, categories, and units to OpenAI's Responses API. It does not send prices, costs, customers, or balances. It requests `store:false`; provider-side data handling still follows your API account's terms. Recognition photos are not written to R2 or the image table. Catalog product IDs and current store prices are validated by the API; results always require cashier confirmation.
 
-The API enforces a persistent per-store daily attempt limit and request rate limit. Failed provider calls count as attempts because they may incur costs. The default limit is 30/day (Philippine dates). Vision usage has separate provider charges and is disabled by default; it is not included automatically in the planned PHP49 subscription. There is no live AI accuracy claim until credentials are configured and actual products are tested. Admin → System shows whether photo recognition is configured.
+The API enforces a persistent per-store daily attempt limit and request rate limit. Failed provider calls count as attempts because they may incur costs. The default limit is 30/day (Philippine dates). Vision usage has separate provider charges and is disabled by default; it is not included automatically in the planned PHP49 subscription. There is no live AI accuracy claim until credentials are configured and actual products are tested. Admin â†’ System shows whether photo recognition is configured.
 
 Matching considers up to 250 catalog products at once. Larger catalogs must be narrowed using the name/category field. Unknown/ambiguous photos may return no match; existing catalog/manual entry remains available. A photo cannot measure weight or verify freshness.
 

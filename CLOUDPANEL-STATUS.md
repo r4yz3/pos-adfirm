@@ -1,16 +1,18 @@
-# CloudPanel staging setup — 21 October 2026
+# CloudPanel native staging status — 21 October 2026
 
+- Public URL: https://pos.adfirm.net (Cloudflare → CloudPanel → localhost API).
 - Host: 161.97.78.97, Ubuntu 24.04, approximately 12 GB RAM.
-- DNS: pos.adfirm.net resolves to the host.
-- SSH: adfirm-pos works; root SSH is denied. Site-user sudo is restricted to CloudPanel's site-user wrapper.
-- Source uploaded to /home/adfirm-pos/apps/adfirm-pos/staging (outside htdocs).
-- Private .env is mode 600, with R2 settings mapped to R2_ACCOUNT_ID/R2_BUCKET, generated database/signing secrets and bootstrap admin@adfirm.net. Credentials are not in source.
-- R2 bucket access and optimized WebP write/read verified. Only the test's own diagnostic object was deleted afterward.
-- R2 CORS verified for https://pos.adfirm.net and https://localhost (GET/HEAD).
-- Production web build passed locally. Docker build and PostgreSQL deployment have not run.
-- Docker, Node.js and PostgreSQL were not found on the server. Runtime is not started.
-- Origin TLS is still self-signed. CloudPanel site-user CLI cannot issue the certificate; admin action is needed.
+- Native deployment under adfirm-pos; Docker is not used and root SSH is not required for this installation.
+- Node.js 22.23.4, PostgreSQL 17.11 and PM2 are account-scoped.
+- API: 127.0.0.1:4100. PostgreSQL: 127.0.0.1:55432 and a private socket. Application database role is not a superuser.
+- Persistent data/configuration live outside Git releases under /home/adfirm-pos/apps/adfirm-pos.
+- Private shared/.env and .pgpass are mode 600. Secrets were not committed or included in web assets.
+- R2 optimized WebP upload/read and CORS verified from the server.
+- Valid HTTPS verified through Cloudflare and directly against the origin.
+- 59 backend tests passed on the server, including loopback-only proxy trust.
+- PostgreSQL concurrency, duplicate delivery, stock valuation and accounting integrity tests passed in an isolated schema.
+- Public HTTPS startup, admin login/logout, authorization, demo-disabled status and web-asset secret checks passed.
+- Local PostgreSQL backup checksum, isolated database restore and accounting integrity passed. The initial staging backup contains the admin account and no merchant transactions.
+- PM2 manages the app. An account cron watchdog checks each minute and at reboot; an hourly backup check creates one backup per Philippine date. An entire server reboot has not been tested, to avoid disturbing other sites.
 
-Next: obtain authorized root/admin SSH access, review and run scripts/cloudpanel-install-docker.sh, then deploy with the dedicated Compose project. Verify PostgreSQL tests, R2 from the server, reverse proxy and a trusted TLS certificate before opening the service to merchants. Do not alter unrelated CloudPanel sites.
-
-The R2 credential shared in chat must be rotated before real data is uploaded. Replace it directly in the private server environment and recreate the API container. The prepared initial admin password is private in the staging environment file; change it after first login.
+See CLOUDPANEL-NATIVE.md for operations. Off-server database copies, separate R2 recovery, log/disk monitoring, production security hardening, physical Android testing and accounting/tax review remain launch requirements. Rotate the R2 credential shared in chat before real data is uploaded. This is a staging/pilot deployment, not a production security certification.

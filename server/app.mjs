@@ -25,7 +25,7 @@ const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().tr
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
 export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition()}={}){
-  const app=Fastify({logger,bodyLimit:1048576});
+  const app=Fastify({logger,bodyLimit:1048576,trustProxy:process.env.TRUST_PROXY==='loopback'?['127.0.0.1','::1']:false});
   const origins=(process.env.CORS_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173,https://localhost,http://localhost').split(',');
   await app.register(cors,{origin:origins});
   await app.register(rateLimit,{max:180,timeWindow:'1 minute'});

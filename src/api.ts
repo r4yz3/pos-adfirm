@@ -5,11 +5,10 @@ import packageInfo from '../package.json';
 
 const configured=(import.meta as ImportMeta&{env:Record<string,string>}).env.VITE_API_URL;
 export const native=Capacitor.isNativePlatform();
-export function apiBase(){return configured||localStorage.getItem('adfirm-api-url')||(native?'https://pos.adfirm.net/api':'/api');}
-export function setApiBase(value:string){const url=new URL(value),env=(import.meta as ImportMeta&{env:Record<string,unknown>}).env;if(url.protocol!=='https:'&&!(url.protocol==='http:'&&(env.DEV||env.VITE_ALLOW_HTTP==='true')))throw new Error('Use an HTTPS API URL');if(!url.pathname.endsWith('/api'))throw new Error('API address must end with /api');localStorage.setItem('adfirm-api-url',value.replace(/\/$/,''));}
+export function apiBase(){return configured||(native?'https://pos.adfirm.net/api':'/api');}
 export class ApiError extends Error{constructor(public status:number,message:string){super(message);}}
 export async function api<T>(path:string,session:Session|null,options:RequestInit={}):Promise<T>{
- const base=apiBase();if(!base)throw new ApiError(0,'Connect your API first');
+ const base=apiBase();
  const headers=new Headers(options.headers);if(session)headers.set('Authorization',`Bearer ${session.token}`);if(options.body&&!(options.body instanceof FormData))headers.set('Content-Type','application/json');
  const response=await fetch(base+path,{...options,headers,signal:options.signal||AbortSignal.timeout(15000)});
  if(!response.ok){const body=await response.json().catch(()=>({error:'Request failed'}));throw new ApiError(response.status,body.error||'Request failed');}return response.json();

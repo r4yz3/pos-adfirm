@@ -1,4 +1,4 @@
-# Adfirm Micro POS — local pilot 0.3.0
+# Adfirm Micro POS — local pilot 0.3.1
 
 Prepared for supervised local testing. The white and pastel-blue app includes multi-store selling, inventory, utang, suppliers, accounting reports, returns, stock transfers, and a separate web super admin. It starts free. The future ₱49/store/month setting displays notice only; billing is not active.
 
@@ -26,7 +26,7 @@ Install the updated `artifacts/Adfirm-Micro-POS-debug.apk` on a test Android 8+ 
 powershell -ExecutionPolicy Bypass -File scripts\start-pilot.ps1 -Lan
 ```
 
-Keep the PC and phone on the same network. Allow the API through the PC firewall only on that private network. In the Android app, set the API URL to `http://<PC-LAN-IP>:4101/api`. An emulator can use `http://10.0.2.2:4101/api`. The PC must remain running and reachable. This debug APK permits local HTTP; public deployment requires HTTPS and a signed release package. Super admin access belongs in the web app.
+The standard APK connects to `https://pos.adfirm.net/api`. For a separate LAN test, rebuild with `VITE_API_URL=http://<PC-LAN-IP>:4101/api` in the build environment; an emulator can use `http://10.0.2.2:4101/api`. Keep the PC and phone on the same trusted network, and allow the API through the PC firewall only there. The PC must remain running. This debug APK permits local HTTP; public distribution requires HTTPS and a signed release package. Super admin access belongs in the web app.
 
 No thermal printer is required. Printer offers create inquiries; actual printer pairing/printing is not implemented.
 

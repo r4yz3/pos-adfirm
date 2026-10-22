@@ -12,6 +12,7 @@ const storage={kind:'local',put:async(k,b)=>images.set(k,b),remove:async k=>imag
 const app=await buildApp({db,demo:true,storage});await app.listen({host:'127.0.0.1',port:0});const base=`http://127.0.0.1:${app.server.address().port}`;
 const browser=await chromium.launch({...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:process.platform==='win32'?{channel:'msedge'}:{}),headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:1080}});page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.addInitScript(()=>localStorage.setItem('adfirm-api-url','https://old-server.invalid/api'));
 const button=name=>page.getByRole('button',{name,exact:true}),nav=name=>page.locator('.sidebar').getByRole('button',{name,exact:true});
 async function csvDownload(locator,contains){const event=page.waitForEvent('download');await locator.click();const download=await event;assert.ok(download.suggestedFilename().endsWith('.csv'));assert.ok((await readFile(await download.path(),'utf8')).includes(contains));}
 async function barcodeImage(){
@@ -21,7 +22,7 @@ async function barcodeImage(){
  return {code,png:await sharp(Buffer.from(svg)).png().toBuffer()};
 }
 try{
- await page.goto(base);await button('Try store').click();await page.getByRole('heading',{name:'Overview.',exact:true}).waitFor();
+ await page.goto(base);assert.equal(await button('API settings').count(),0);assert.equal(await page.getByLabel('API address').count(),0);await button('Try store').click();await page.getByRole('heading',{name:'Overview.',exact:true}).waitFor();
  await nav('Products').click();await button('Add product').click();await page.getByRole('button',{name:'Scan product barcode',exact:true}).click();const barcode=await barcodeImage();await page.locator('.barcode-capture input[type=file]').setInputFiles({name:'barcode.png',mimeType:'image/png',buffer:barcode.png});await expect(page.getByLabel('Barcode',{exact:true})).toHaveValue(barcode.code);
  await page.getByLabel('Product name',{exact:true}).fill('Scanned Product');await page.getByLabel('Selling price (₱)',{exact:true}).fill('20');await page.getByLabel('Unit cost (₱)',{exact:true}).fill('10');await page.getByLabel('Opening stock',{exact:true}).fill('5');await page.getByLabel('Low stock at',{exact:true}).fill('2');
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.ok(await page.getByLabel('Product name',{exact:true}).evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=16));await page.screenshot({path:'artifacts/product-editor-v03-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1080});await button('Save product').click();await page.getByRole('dialog').waitFor({state:'hidden'});

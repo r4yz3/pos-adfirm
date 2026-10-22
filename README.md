@@ -1,6 +1,6 @@
 # Adfirm Micro POS
 
-Local pilot build 0.3.0: a white / powder-blue POS interface, Android package, API, and a separate super admin workspace.
+Pilot build 0.3.1: a white / powder-blue POS interface, Android package, API, and a separate super admin workspace.
 
 For a separate pilot database without demo shortcuts, follow [LOCAL-PILOT.md](LOCAL-PILOT.md). For the installed native CloudPanel staging service, see [CLOUDPANEL-NATIVE.md](CLOUDPANEL-NATIVE.md) and [verification status](CLOUDPANEL-STATUS.md).
 
@@ -87,7 +87,7 @@ npm.cmd run android:build
 
 The setup downloads a checksum-verified Adoptium JDK 21 and Google's Android SDK tools under ignored `.tools/`. The debug build is copied to `artifacts/Adfirm-Micro-POS-debug.apk`.
 
-On first launch, configure an API URL ending in `/api`. For the emulator, `http://10.0.2.2:4100/api` reaches the host API. A physical device needs a reachable server URL; use HTTPS outside trusted development networks. Debug builds allow HTTP for local testing; release builds require HTTPS. To access from a phone on your trusted LAN, start the API with `HOST=0.0.0.0` and use the PC's LAN address. Do not expose demo access to the public internet.
+The standard Android build connects automatically to `https://pos.adfirm.net/api`; users do not configure an API address. Old saved API settings are ignored. A development build can target a different server by setting `VITE_API_URL` at build time. Use HTTPS outside trusted development networks. Do not expose demo access to the public internet.
 
 Release builds: provide `VITE_API_URL=https://your-api.example.com/api`, run `npm run android:sync`, and create a signed release in Android Studio. Signing keys stay outside source control. Device camera scanning and printer hardware require physical-device testing.
 

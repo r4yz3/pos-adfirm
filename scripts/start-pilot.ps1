@@ -26,6 +26,6 @@ try{
  }
  Write-Host "Local pilot: http://127.0.0.1:$Port"
  Write-Host 'Demo shortcuts and AI are disabled. Records use a separate pilot database. Ctrl+C stops the server.'
- if($Lan){Write-Host "Trusted LAN only: use this PC's LAN address with port $Port in the Android API settings (ending /api)."}
+ if($Lan){Write-Host "Trusted LAN only: rebuild the Android app with VITE_API_URL=http://<PC-LAN-IP>:$Port/api before testing."}
  & node server/index.mjs
 }finally{foreach($key in $keys){[Environment]::SetEnvironmentVariable($key,$saved[$key],'Process')}}

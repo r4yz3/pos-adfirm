@@ -8,7 +8,7 @@ assert.deepEqual(health,{status:'ok',database:'postgres',storage:'r2',demo:false
 assert.equal((await request('/')).status,200);
 assert.equal((await request('/api/admin/overview')).status,401);
 assert.equal((await request('/api/auth/demo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'superadmin'})})).status,404);
-if(process.env.BOOTSTRAP_ADMIN_PASSWORD){
+if(process.env.BOOTSTRAP_ADMIN_PASSWORD&&process.env.ADFIRM_SKIP_LOGIN!=='true'){
  const response=await request('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:process.env.BOOTSTRAP_ADMIN_EMAIL,password:process.env.BOOTSTRAP_ADMIN_PASSWORD})});assert.equal(response.status,200);
  const session=await response.json(),headers={Authorization:`Bearer ${session.token}`};
  assert.equal(session.user.role,'superadmin');

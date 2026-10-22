@@ -1,3 +1,6 @@
+import {registerPlatformRoutes} from './platform.mjs';
+import {productInsights} from './insights.mjs';
+import {updateProduct,canonicalBarcode} from './product-edit.mjs';
 import {transferStock} from './transfers.mjs';
 import {checkIntegrity} from './integrity.mjs';
 import {returnSale} from './returns.mjs';
@@ -21,7 +24,7 @@ import { imageStorage, optimizeImage } from './images.mjs';
 
 const money=z.number().int().min(0).max(100000000);
 const saleSchema=z.object({id:z.uuid(),lines:z.array(z.object({productId:z.string().min(1),quantity:z.number().positive().max(10000),priceMinor:money})).min(1).max(100),paymentMethod:z.enum(['cash','wallet','credit']),cashMinor:money.optional(),customerId:z.string().optional(),walletVerified:z.boolean().optional(),occurredAt:z.iso.datetime().optional(),offline:z.boolean().optional()});
-const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(120),barcode:z.string().trim().max(80).optional(),category:z.string().trim().min(1).max(50),unit:z.enum(['pc','sachet','bottle','can','pack','kg','service']),priceMinor:money,costMinor:money,stock:z.number().min(0).max(1000000),lowStock:z.number().min(0).max(1000000).default(5),imageId:z.uuid().optional()});
+const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(120),barcode:z.string().trim().max(80).optional(),category:z.string().trim().min(1).max(50),unit:z.enum(['pc','sachet','bottle','can','pack','pouch','kg','service']),priceMinor:money,costMinor:money,stock:z.number().min(0).max(1000000),lowStock:z.number().min(0).max(1000000).default(5),imageId:z.uuid().optional()});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
 export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition()}={}){
@@ -47,6 +50,7 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
     if(!membership||owner&&membership.role!=='owner')throw new HttpError(403,'You do not have access');req.membership=membership;
   }
   async function admin(req){await auth(req);if(req.user.role!=='superadmin')throw new HttpError(403,'Super admin access required');}
+  registerPlatformRoutes(app,{db,auth,admin});
   async function issueSessionIn(tx,user){const token=randomBytes(32).toString('hex');await tx.run('INSERT INTO sessions VALUES(?,?,?)',[hash(token),user.id,new Date(Date.now()+12*3600000).toISOString()]);return {token,user:{id:user.id,name:user.name,email:user.email,role:user.role},demo};}
   async function findImage(req,imageId){const image=await db.get('SELECT * FROM images WHERE id=? AND store_id=?',[imageId,req.params.storeId]);if(!image)throw new HttpError(404,'Image not found');return image;}
   app.get('/api/health',async()=>({status:'ok',database:db.kind,storage:storage.kind,demo}));
@@ -74,10 +78,10 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
     return {salesEnabled:Number((await db.get('SELECT sales_enabled FROM store_settings WHERE store_id=?',[req.params.storeId]))?.sales_enabled??1)!==0,products,customers:(await db.all('SELECT * FROM customers WHERE store_id=? ORDER BY name',[req.params.storeId])).map(customerView),dashboard:req.membership.role==='owner'?await dashboard(db,req.params.storeId,day):null,billing:JSON.parse((await db.get("SELECT value FROM platform_settings WHERE id='billing'")).value),syncedAt:now()};
   });
   app.post('/api/stores/:storeId/products',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{
-    const p=productSchema.parse(req.body),pid=p.id||id(),storeId=req.params.storeId,at=now();
+    const p=productSchema.parse(req.body);if(p.barcode)p.barcode=canonicalBarcode(p.barcode);const pid=p.id||id(),storeId=req.params.storeId,at=now();
     if(p.unit==='service'&&(p.stock!==0||p.costMinor!==0))throw new HttpError(400,'Services use zero stock and cost. Record service costs as expenses.');
     if(p.imageId)await findImage(req,p.imageId);
-    return command(db,req.user,storeId,'product.create',p,async tx=>{if(p.imageId&&!await tx.get('SELECT id FROM images WHERE id=? AND store_id=?',[p.imageId,storeId]))throw new HttpError(404,'Product image no longer exists. Upload it again.');const value=Math.round(p.costMinor*p.stock);if(value>100000000)throw new HttpError(400,'Opening inventory value exceeds the limit');await tx.run('INSERT INTO products VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[pid,storeId,p.name,p.barcode||null,p.category,p.unit,p.priceMinor,p.costMinor,Math.round(p.stock*1000),Math.round(p.lowStock*1000),p.imageId||null,at,value]);await tx.run('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?)',[id(),storeId,pid,Math.round(p.stock*1000),'opening',pid,at]);await journal(tx,storeId,'opening',pid,[{account:'inventory',debit:value},{account:'equity',credit:value}]);await audit(tx,req.user.id,'product.created',storeId,{productId:pid});return {product:productView(await tx.get('SELECT * FROM products WHERE id=?',[pid]))};});
+    return command(db,req.user,storeId,'product.create',p,async tx=>{if(p.barcode){const codes=await tx.all('SELECT barcode FROM products WHERE store_id=? AND barcode IS NOT NULL',[storeId]);if(codes.some(row=>canonicalBarcode(row.barcode)===p.barcode))throw new HttpError(409,'Barcode already belongs to another product');}if(p.imageId&&!await tx.get('SELECT id FROM images WHERE id=? AND store_id=?',[p.imageId,storeId]))throw new HttpError(404,'Product image no longer exists. Upload it again.');const value=Math.round(p.costMinor*p.stock);if(value>100000000)throw new HttpError(400,'Opening inventory value exceeds the limit');await tx.run('INSERT INTO products VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[pid,storeId,p.name,p.barcode||null,p.category,p.unit,p.priceMinor,p.costMinor,Math.round(p.stock*1000),Math.round(p.lowStock*1000),p.imageId||null,at,value]);await tx.run('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?)',[id(),storeId,pid,Math.round(p.stock*1000),'opening',pid,at]);await journal(tx,storeId,'opening',pid,[{account:'inventory',debit:value},{account:'equity',credit:value}]);await audit(tx,req.user.id,'product.created',storeId,{productId:pid});return {product:productView(await tx.get('SELECT * FROM products WHERE id=?',[pid]))};});
   });
   app.post('/api/stores/:storeId/products/:productId/restock',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{
     const body=z.object({id:z.string().uuid().optional(),quantity:z.number().positive().max(100000),unitCostMinor:money,paymentMethod:z.enum(['cash','wallet','supplier'])}).parse(req.body),storeId=req.params.storeId;
@@ -85,9 +89,14 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   });
   app.post('/api/stores/:storeId/sales/reconcile',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{const b=z.object({sale:saleSchema,reason:z.string().trim().min(5).max(200)}).parse(req.body);return postSale(db,req.user,req.params.storeId,b.sale,{recordedPriceReason:b.reason});});
   app.post('/api/stores/:storeId/sales',{preHandler:req=>storeAccess(req)},async req=>{const result=await postSale(db,req.user,req.params.storeId,saleSchema.parse(req.body));if(req.membership.role!=='owner')delete result.costMinor;return result;});
-  app.patch('/api/stores/:storeId/products/:productId',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{
-    const p=z.object({name:z.string().trim().min(2).max(120),priceMinor:money,lowStock:z.number().min(0).max(1000000)}).parse(req.body);
-    await db.tx(async tx=>{const row=await tx.get('SELECT id FROM products WHERE id=? AND store_id=?',[req.params.productId,req.params.storeId]);if(!row)throw new HttpError(404,'Product not found');await tx.run('UPDATE products SET name=?,price_minor=?,low_stock_milli=?,updated_at=? WHERE id=? AND store_id=?',[p.name,p.priceMinor,Math.round(p.lowStock*1000),now(),req.params.productId,req.params.storeId]);await audit(tx,req.user.id,'product.updated',req.params.storeId,{productId:req.params.productId,priceMinor:p.priceMinor});});return {ok:true};
+  app.patch('/api/stores/:storeId/products/:productId',{preHandler:req=>storeAccess(req,{owner:true})},async req=>updateProduct(db,req.user,req.params.storeId,req.params.productId,z.object({id:z.uuid().optional(),name:z.string().trim().min(2).max(120).optional(),barcode:z.string().trim().max(80).nullable().optional(),category:z.string().trim().min(1).max(50).optional(),unit:z.enum(['pc','sachet','bottle','can','pack','pouch','kg','service']).optional(),priceMinor:money.optional(),costMinor:money.optional(),stock:z.number().min(-1000000).max(1000000).optional(),lowStock:z.number().min(0).max(1000000).optional(),imageId:z.uuid().nullable().optional(),reason:z.string().trim().max(200).optional(),expectedUpdatedAt:z.iso.datetime().optional()}).parse(req.body)));
+  app.get('/api/stores/:storeId/insights',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{const q=z.object({from:z.string().default(today()),to:z.string().default(today())}).parse(req.query);return db.tx(async tx=>{if(db.kind==='postgres')await tx.run('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');return productInsights({...tx,kind:db.kind},req.params.storeId,q.from,q.to);});});
+  app.get('/api/stores/:storeId/customers/:customerId/statement',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{
+    const sid=req.params.storeId,cid=req.params.customerId,customer=await db.get('SELECT * FROM customers WHERE id=? AND store_id=?',[cid,sid]);if(!customer)throw new HttpError(404,'Customer not found');
+    const sales=await db.all("SELECT id,total_minor AS amount,occurred_at AS at FROM sales WHERE customer_id=? AND store_id=? AND payment_method='credit' ORDER BY occurred_at DESC LIMIT 200",[cid,sid]);
+    const payments=await db.all('SELECT id,amount_minor AS amount,created_at AS at FROM collections WHERE customer_id=? AND store_id=? ORDER BY created_at DESC LIMIT 200',[cid,sid]);
+    const returns=await db.all('SELECT r.id,r.credit_cancel_minor AS amount,r.created_at AS at FROM sale_returns r JOIN sales s ON s.id=r.sale_id WHERE s.customer_id=? AND r.store_id=? AND r.credit_cancel_minor>0 ORDER BY r.created_at DESC LIMIT 200',[cid,sid]);
+    return {customer:customerView(customer),events:[...sales.map(s=>({...s,type:'Utang',amountMinor:Number(s.amount)})),...payments.map(s=>({...s,type:'Payment',amountMinor:-Number(s.amount)})),...returns.map(s=>({...s,type:'Return',amountMinor:-Number(s.amount)}))].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,200)};
   });
   app.post('/api/stores/:storeId/products/:productId/count',{preHandler:req=>storeAccess(req,{owner:true})},async req=>{
     const b=z.object({id:z.string().uuid().optional(),quantity:z.number().min(0).max(1000000),reason:z.enum(['Stock count','Damaged','Expired','Correction'])}).parse(req.body),storeId=req.params.storeId;

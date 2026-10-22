@@ -1,4 +1,4 @@
-# Adfirm Micro POS — local pilot 0.2.0
+# Adfirm Micro POS — local pilot 0.3.0
 
 Prepared for supervised local testing. The white and pastel-blue app includes multi-store selling, inventory, utang, suppliers, accounting reports, returns, stock transfers, and a separate web super admin. It starts free. The future ₱49/store/month setting displays notice only; billing is not active.
 
@@ -20,7 +20,7 @@ For vegetables or chicken, select kg and enter prices/costs per kg. Cashiers sel
 
 ## Android testing
 
-Install `artifacts/Adfirm-Micro-POS-debug.apk` on a test Android 8+ device. Start the pilot on a trusted local network:
+Install the updated `artifacts/Adfirm-Micro-POS-debug.apk` on a test Android 8+ device. Start the pilot on a trusted local network:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\start-pilot.ps1 -Lan

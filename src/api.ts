@@ -1,10 +1,11 @@
 import Dexie, {type EntityTable} from 'dexie';
 import {Capacitor} from '@capacitor/core';
 import type {Session,Snapshot,QueueItem,Receipt} from './types';
+import packageInfo from '../package.json';
 
 const configured=(import.meta as ImportMeta&{env:Record<string,string>}).env.VITE_API_URL;
 export const native=Capacitor.isNativePlatform();
-export function apiBase(){return configured||localStorage.getItem('adfirm-api-url')||(native?'':'/api');}
+export function apiBase(){return configured||localStorage.getItem('adfirm-api-url')||(native?'https://pos.adfirm.net/api':'/api');}
 export function setApiBase(value:string){const url=new URL(value),env=(import.meta as ImportMeta&{env:Record<string,unknown>}).env;if(url.protocol!=='https:'&&!(url.protocol==='http:'&&(env.DEV||env.VITE_ALLOW_HTTP==='true')))throw new Error('Use an HTTPS API URL');if(!url.pathname.endsWith('/api'))throw new Error('API address must end with /api');localStorage.setItem('adfirm-api-url',value.replace(/\/$/,''));}
 export class ApiError extends Error{constructor(public status:number,message:string){super(message);}}
 export async function api<T>(path:string,session:Session|null,options:RequestInit={}):Promise<T>{
@@ -18,6 +19,7 @@ db.version(1).stores({snapshots:'key',outbox:'id,userId,storeId,createdAt',recei
 db.version(2).stores({snapshots:'key',outbox:'id,userId,storeId,createdAt',receipts:'id,userId,storeId,occurredAt',images:'key,scope,touched'});
 export function readSession():Session|null{try{return JSON.parse(localStorage.getItem('adfirm-session')||'null');}catch{return null;}}
 export function persistSession(session:Session|null){if(session)localStorage.setItem('adfirm-session',JSON.stringify(session));else localStorage.removeItem('adfirm-session');}
+export async function recordInstallation(session:Session,storeId?:string){try{let key=localStorage.getItem('adfirm-installation-id');if(!key){key=crypto.randomUUID();localStorage.setItem('adfirm-installation-id',key);}await api('/installations',session,{method:'POST',body:JSON.stringify({installationId:key,platform:Capacitor.getPlatform()==='android'?'android':'web',version:packageInfo.version,storeId})});}catch{/* Device registration never blocks a sale or sign-in. */}}
 export async function pending(session:Session,storeId?:string){return (await db.outbox.where('userId').equals(session.user.id).sortBy('createdAt')).filter(q=>!storeId||q.storeId===storeId);}
 export async function snapshot(session:Session,storeId:string):Promise<{data:Snapshot;cached:boolean}>{
  const key=`${session.user.id}:${storeId}`;

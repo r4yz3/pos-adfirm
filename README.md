@@ -1,6 +1,6 @@
 # Adfirm Micro POS
 
-Local pilot build 0.2.0: a white / powder-blue POS interface, Android package, API, and a separate super admin workspace.
+Local pilot build 0.3.0: a white / powder-blue POS interface, Android package, API, and a separate super admin workspace.
 
 For a separate pilot database without demo shortcuts, follow [LOCAL-PILOT.md](LOCAL-PILOT.md). For the installed native CloudPanel staging service, see [CLOUDPANEL-NATIVE.md](CLOUDPANEL-NATIVE.md) and [verification status](CLOUDPANEL-STATUS.md).
 
@@ -43,6 +43,15 @@ The application is built with React / TypeScript and Capacitor for Android. The 
 - Printer inquiries sent to the platform admin; no printer required for selling.
 - Admin business provisioning, store list, audit events, and a 30-day paid-plan notice setting at PHP49/store/month.
 - Image pipeline ready for private Cloudflare R2, with a local development adapter.
+
+## Version 0.3.0
+
+- Scan directly in Add/Edit product: native rear camera on Android; camera, barcode photo and manual entry on web. UPC-A/EAN-13 equivalents match the same catalog item. Inventory scanning searches stock instead of adding to a sale.
+- Edit name, barcode, category, price, cost, stock, low-stock level and photo. Stock/cost changes require a note and update inventory/accounting atomically. Reused request IDs do not repeat adjustments; stale edits are rejected. Units cannot be reinterpreted after stock or sales; create a separate product for a unit conversion.
+- Android CSV/JSON/receipt exports use the native file/share sheet. Web exports download UTF-8 files. Inventory, product performance, utang and customer history exports are included. Existing ledger/history limits are still shown in the UI.
+- Larger controls and text, shorter help, owner-created businesses and stores, net product rankings, daily sales, gross profit and slow movers. Pending sales are excluded; returns use their recorded date.
+- Utang opens with people who owe money, sorted by balance; All customers and charge/payment/return history remain available.
+- Admin device registration, account directory, paginated audit activity, printer inquiry status, sales pause/resume, and manual per-store plan records. Registered Android counts begin with first sign-in on this version; they do not measure downloads or uninstalls. Random app IDs are used, not hardware identifiers. Active plan counts require an unexpired manual enrollment. Billing collection/enforcement is still not connected.
 
 ## Cloudflare R2
 

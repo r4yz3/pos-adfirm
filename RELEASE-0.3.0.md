@@ -10,7 +10,7 @@ Admin adds registered devices, active/manual plan counts, accounts, audit pagina
 
 ## Checks
 
-- 67 backend tests passed, including permissions, inventory ledger consistency, retry/stale-edit handling, exact product return allocation, owner isolation and audit cursors.
+- 68 backend tests passed, including permissions, Android CORS preflight, inventory ledger consistency, retry/stale-edit handling, exact product return allocation, owner isolation and audit cursors.
 - Both browser suites passed. The new suite decodes an actual generated EAN-13 barcode photo inside Add product, downloads and reads CSV files, edits metadata/photo/cost/stock, sells the scanned product, checks metrics, collects utang, creates a business/store and exercises admin controls.
 - Mobile layouts checked at 320 and 390 pixels; editor inputs are at least 16 pixels. No browser errors were observed.
 - PostgreSQL schema, concurrency, retries, edits, product insights, registered devices, manual plans and owner-created businesses passed in an isolated schema on the native server.

@@ -30,7 +30,7 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'nu
 export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition()}={}){
   const app=Fastify({logger,bodyLimit:1048576,trustProxy:process.env.TRUST_PROXY==='loopback'?['127.0.0.1','::1']:false});
   const origins=(process.env.CORS_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173,https://localhost,http://localhost').split(',');
-  await app.register(cors,{origin:origins});
+  await app.register(cors,{origin:origins,methods:['GET','HEAD','POST','PUT','PATCH','OPTIONS']});
   await app.register(rateLimit,{max:180,timeWindow:'1 minute'});
   await app.register(multipart,{limits:{fileSize:10*1024*1024,files:1,fields:0}});
   app.addHook('onSend',async(req,reply,payload)=>{reply.header('X-Content-Type-Options','nosniff').header('Referrer-Policy','no-referrer');if(req.url.startsWith('/api/')&&!req.url.includes('/file?'))reply.header('Cache-Control','no-store');return payload;});

@@ -11,6 +11,7 @@ Root: `/home/adfirm-pos/apps/adfirm-pos`
 - `runtime/pm2`: account-local PM2.
 - `shared/.env`: private application configuration, mode 600; never committed.
 - `data/postgres`: persistent database cluster, separate from releases.
+- PostgreSQL uses file-backed dynamic shared memory (`mmap`) under this site account, so user-session cleanup cannot remove a live POSIX shared-memory segment.
 - `run`: private database socket and watchdog lock directory.
 - `releases/<commit>`: source, dependencies and compiled web assets.
 - `current`: active release symlink.

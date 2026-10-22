@@ -20,6 +20,7 @@ unix_socket_permissions = 0700
 password_encryption = 'scram-sha-256'
 max_connections = 50
 shared_buffers = '128MB'
+dynamic_shared_memory_type = mmap
 log_statement = 'none'
 EOF
 fi

@@ -17,7 +17,8 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { z, ZodError } from 'zod';
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, createReadStream } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { id, now, hash, passwordHash, passwordMatches, HttpError, productView, customerView, postSale, journal, audit, dashboard, saleResult } from './domain.mjs';
 import { imageStorage, optimizeImage } from './images.mjs';
@@ -27,7 +28,7 @@ const saleSchema=z.object({id:z.uuid(),lines:z.array(z.object({productId:z.strin
 const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(120),barcode:z.string().trim().max(80).optional(),category:z.string().trim().min(1).max(50),unit:z.enum(['pc','sachet','bottle','can','pack','pouch','kg','service']),priceMinor:money,costMinor:money,stock:z.number().min(0).max(1000000),lowStock:z.number().min(0).max(1000000).default(5),imageId:z.uuid().optional()});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
-export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition(),signup=process.env.PUBLIC_SIGNUP!=='false',adminHosts=process.env.ADMIN_HOSTS,appHosts=process.env.APP_HOSTS}={}){
+export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition(),signup=process.env.PUBLIC_SIGNUP!=='false',adminHosts=process.env.ADMIN_HOSTS,appHosts=process.env.APP_HOSTS,downloadsDir=process.env.DOWNLOADS_DIR||resolve('downloads')}={}){
   const app=Fastify({logger,bodyLimit:1048576,trustProxy:process.env.TRUST_PROXY==='loopback'?['127.0.0.1','::1']:false});
   const origins=(process.env.CORS_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173,https://localhost,http://localhost').split(',');
   // Each web address serves one side: store POS or platform admin. Unlisted hosts (local dev) serve both.
@@ -60,6 +61,13 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   registerPlatformRoutes(app,{db,auth,admin});
   async function issueSessionIn(tx,user){const token=randomBytes(32).toString('hex');await tx.run('INSERT INTO sessions VALUES(?,?,?)',[hash(token),user.id,new Date(Date.now()+12*3600000).toISOString()]);return {token,user:{id:user.id,name:user.name,email:user.email,role:user.role},demo};}
   async function findImage(req,imageId){const image=await db.get('SELECT * FROM images WHERE id=? AND store_id=?',[imageId,req.params.storeId]);if(!image)throw new HttpError(404,'Image not found');return image;}
+  // Android app downloads: android.json (written by scripts/android-build.mjs) names the current APK in downloadsDir.
+  // It is read per request so publishing a new APK needs no restart.
+  async function androidRelease(){try{const info=JSON.parse(await readFile(resolve(downloadsDir,'android.json'),'utf8'));if(!/^[\w.-]+\.apk$/.test(info.file||''))return null;const file=resolve(downloadsDir,info.file);return {...info,path:file,size:(await stat(file)).size};}catch{return null;}}
+  app.get('/api/app/android',async()=>{const info=await androidRelease();if(!info)throw new HttpError(404,'The Android app is not available yet.');return {versionName:info.versionName,versionCode:info.versionCode,size:info.size,sha256:info.sha256,publishedAt:info.publishedAt,url:`/download/android/${info.file}`};});
+  app.get('/download/android',async(req,reply)=>{const info=await androidRelease();if(!info)return reply.code(404).send({error:'The Android app is not available yet.'});return reply.header('Cache-Control','no-cache').redirect(`/download/android/${info.file}`,302);});
+  app.get('/download/android/:file',async(req,reply)=>{const info=await androidRelease();if(!info||req.params.file!==info.file)return reply.code(404).send({error:'This version is no longer available. Download the latest app.'});
+    return reply.header('Content-Type','application/vnd.android.package-archive').header('Content-Disposition',`attachment; filename="${info.file}"`).header('Content-Length',info.size).header('Cache-Control','public, max-age=86400').send(createReadStream(info.path));});
   app.get('/api/health',async req=>({status:'ok',database:db.kind,storage:storage.kind,demo,signup:signup&&surface(req)!=='admin',surface:surface(req),appUrl,adminUrl}));
   // Self-service owner sign-up: one transaction creates the owner, their business and first store, then signs them in.
   // Behind Cloudflare many visitors share an edge address, so the limit follows the visitor address Cloudflare reports.

@@ -7,8 +7,8 @@ android {
         applicationId "com.adfirm.micropos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "0.3.1"
+        versionCode 5
+        versionName "0.4.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +16,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing reads a key kept outside the repository (default ~/.adfirm-signing/keystore.properties).
+    def signingFile = file(System.getenv("ADFIRM_KEYSTORE_PROPERTIES") ?: "${System.getProperty("user.home")}/.adfirm-signing/keystore.properties")
+    def signing = new Properties()
+    if (signingFile.exists()) signingFile.withInputStream { signing.load(it) }
+    signingConfigs {
+        release {
+            if (signing.storeFile) {
+                storeFile file(signing.storeFile)
+                storePassword signing.storePassword
+                keyAlias signing.keyAlias
+                keyPassword signing.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signing.storeFile) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

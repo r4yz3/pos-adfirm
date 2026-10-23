@@ -38,3 +38,21 @@ Open `app.adfirm.net` in Safari, tap **Share**, then **Add to Home Screen**. The
 The installed app opens full screen and starts without internet once it has been opened online at least once. Sales made offline sync when the connection returns. iPhone may clear saved offline data for an app that has not been opened for several weeks, so stores should open it while online regularly.
 
 App icons are generated from one design by `node scripts/generate-icons.mjs`.
+
+## Android app download
+
+Android visitors to `app.adfirm.net` see **Get the Android app** on the sign-in screen and the **More** page. `app.adfirm.net/download/android` always points to the latest version, so it is the link to share. The installed app shows an **Update available** banner when a newer version is published.
+
+### Publish a new version
+
+1. Raise `versionCode` (by 1) and `versionName` in `android/app/build.gradle`. The app only offers an update when `versionCode` goes up.
+2. Run `npm run android:build`. It builds a release APK signed with the Adfirm key and writes `artifacts/POS-For-Micro-Business-<version>.apk` plus `artifacts/android.json` (version, size, SHA-256).
+3. Copy both files to `/home/adfirm-pos/apps/adfirm-pos/shared/downloads/` on the server, and set `DOWNLOADS_DIR` to that folder in `shared/.env` (once). The server reads `android.json` on every request, so no restart is needed. Keep the APK copy before `android.json` so the link never points at a missing file.
+
+### The signing key
+
+Release builds are signed with the key in `C:\Users\User\.adfirm-signing\` (`adfirm-pos-release.jks` and `keystore.properties`, which holds its password). It never goes in the repository.
+
+**Back up that folder somewhere safe and private.** Every future update must be signed with the same key: Android refuses to install an update signed with a different key, and users would have to uninstall (losing unsynced sales on that phone) to switch. The same key can later be used for Google Play.
+
+Without the key, `npm run android:build` falls back to a debug APK for local testing only.

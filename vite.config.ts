@@ -17,8 +17,12 @@ function offlineShell(): Plugin {
   };
 }
 
+// The Android version code lets the installed app tell when a newer APK has been published.
+const androidVersionCode = Number(readFileSync('android/app/build.gradle', 'utf8').match(/versionCode (\d+)/)?.[1] || 0);
+
 export default defineConfig({
   plugins: [react(), offlineShell()],
+  define: { __APP_VERSION_CODE__: JSON.stringify(androidVersionCode) },
   server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:4100' }, watch: { ignored: ['**/.tools/**','**/android/**','**/data/**','**/artifacts/**'] } },
   build: { outDir: 'dist', sourcemap: false },
 });

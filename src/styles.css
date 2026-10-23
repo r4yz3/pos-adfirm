@@ -183,14 +183,7 @@ body,.main-content{background:var(--page)}
 .demo-entry>span{color:#5a7491;font-size:11px}
 @media(max-width:600px){.login-mobile-brand{margin-bottom:34px}.auth-tabs{margin-bottom:24px}.login-form>h2,.signup>h2{font-size:27px}}
 
-/* Install as an app (iPhone, iPad, Android and desktop browsers) */
-.install-guide{border:1px solid #cfe0f5;background:linear-gradient(180deg,#f4f9ff,#eaf2fd);border-radius:16px;padding:14px;margin:0 0 24px}
-.install-guide.persistent{margin-bottom:22px}
-.install-guide-head{display:flex;align-items:center;gap:12px}
-.install-guide-head img{width:44px;height:44px;border-radius:11px;flex-shrink:0;box-shadow:0 3px 10px #1f5fbf33}
-.install-guide-head>div{flex:1;min-width:0}.install-guide-head b{display:block;font-size:15px;color:var(--ink)}.install-guide-head small{display:block;font-size:13px;line-height:1.45;color:#405a76;margin-top:2px}
-.install-guide-head .icon-button{align-self:flex-start;margin:-4px -4px 0 0}
-.install-action{width:100%;margin-top:12px;min-height:44px;font-size:14px}
+/* Step lists for installing the app */
 .install-steps{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
 .install-steps li{display:flex;gap:11px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px}
 .install-steps li>span{width:32px;height:32px;flex-shrink:0;display:grid;place-items:center;border-radius:9px;background:var(--primary-soft);color:var(--primary)}
@@ -239,30 +232,6 @@ body,.main-content{background:var(--page)}
 .brand small i{font-style:normal;color:var(--primary);margin:0 1px}
 .brand small{white-space:nowrap;letter-spacing:.9px;font-weight:650}
 .mobile-logo .brand small,.login-mobile-brand .brand small,.wrong-site .brand small{font-size:10.5px;color:#4f6781}
-.install-guide-head .install-by{display:block;font-size:12px;font-weight:600;color:var(--primary);margin-top:1px}
-
-/* Get the Android app */
-.android-download{position:relative;border:1px solid #cfe0f5;border-radius:18px;padding:16px;margin:0 0 24px;background:radial-gradient(120% 140% at 100% 0%,#dceafd 0%,#f4f9ff 55%,#fff 100%);box-shadow:0 8px 24px #1f5fbf12}
-.android-download.persistent{margin-bottom:22px}
-.android-download-head{display:flex;align-items:center;gap:13px}
-.android-download-head>div{flex:1;min-width:0}
-.android-download-head .eyebrow{display:block;font-size:10px;letter-spacing:1.4px;color:var(--primary);font-weight:700}
-.android-download-head b{display:block;font-size:16px;color:var(--ink);margin-top:2px}
-.android-download-head small{display:block;font-size:12.5px;color:#4f6781;margin-top:2px}
-.android-download-head .icon-button{align-self:flex-start;margin:-6px -6px 0 0}
-.android-download-icon{position:relative;flex-shrink:0}
-.android-download-icon img{width:48px;height:48px;border-radius:13px;box-shadow:0 4px 12px #1f5fbf3d;display:block}
-.android-download-icon i{position:absolute;right:-5px;bottom:-5px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#17845a;color:#fff;border:2px solid #fff}
-.android-download-perks{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:0}
-.android-download-perks li{font-size:12px;font-weight:600;color:#2c4664;background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 10px}
-.android-download-button{width:100%;margin-top:14px;min-height:50px;font-size:15px;text-decoration:none}
-.android-download-desktop{margin:14px 0 0;font-size:13.5px;color:#405a76;background:#fff;border:1px dashed #b9cfe8;border-radius:12px;padding:10px 12px}
-.android-download-desktop b{color:var(--primary-ink);overflow-wrap:anywhere}
-.android-download-toggle{display:flex;align-items:center;gap:5px;margin:12px auto 0;border:0;background:none;color:var(--primary);font-weight:650;font-size:13.5px;padding:4px}
-.android-download-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
-.android-download .install-steps li>span{font-weight:800;font-size:14px}
-.android-download-meta{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px;margin:12px 0 0;font-size:11.5px;color:#5a7491;text-align:center}
-.android-download-meta svg{color:var(--success)}
 
 /* In-app update banner (Android app) */
 .update-notice{display:flex;align-items:center;gap:10px;padding:11px 12px 11px 15px;margin-bottom:18px;border-radius:14px;background:var(--ink);color:#e6eef8;box-shadow:0 8px 22px #0f2a4a2e}
@@ -271,3 +240,34 @@ body,.main-content{background:var(--page)}
 .update-notice .button{background:#fff;border-color:#fff;color:var(--ink);margin:0;min-height:36px;box-shadow:none}
 .update-notice .button:hover:not(:disabled){background:#e9f1fc;border-color:#e9f1fc;box-shadow:none}
 .update-notice .icon-button{color:#9fb6d1}.update-notice .icon-button:hover{background:#ffffff14;color:#fff}
+
+/* Get the app: every device, current one first */
+.get-app{margin:28px 0 0;padding-top:24px;border-top:1px solid var(--line)}
+.get-app-head .eyebrow{display:block;font-size:11px;letter-spacing:1.5px;color:var(--primary);font-weight:700}
+.get-app-head h3{font-size:19px;letter-spacing:-.4px;color:var(--ink);margin-top:6px}
+.get-app-head p{font-size:14px;color:var(--muted);margin:4px 0 14px}
+.get-app>ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.get-app-option{border:1px solid var(--line);border-radius:14px;background:#fff;transition:border-color .15s,box-shadow .15s}
+.get-app-option.current{border-color:#a9c6ea;background:linear-gradient(180deg,#f6faff,#fff);box-shadow:0 6px 18px #1f5fbf14}
+.get-app-row{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 13px}
+.get-app-row>div{flex:1;min-width:0}
+.get-app-row b{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:14.5px;color:var(--ink)}
+.get-app-row b em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.3px;color:var(--primary-ink);background:var(--primary-soft);border-radius:999px;padding:2px 8px}
+.get-app-row small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.get-app-row .button{margin:0;flex-shrink:0;min-height:38px;font-size:13px;text-decoration:none}
+.get-app-row .button svg{transition:transform .15s}.get-app-row .button[aria-expanded=true] svg{transform:rotate(180deg)}
+.get-app-icon{width:40px;height:40px;flex-shrink:0;display:grid;place-items:center;border-radius:11px;background:var(--primary-soft);color:var(--primary)}
+.get-app-option.current .get-app-icon{background:var(--primary);color:#fff}
+.get-app-installed{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:650;color:var(--success);flex-shrink:0}
+.get-app-more{display:flex;align-items:center;gap:4px;margin:-4px 0 10px 65px;border:0;background:none;padding:2px 0;font-size:12.5px;font-weight:650;color:var(--primary)}
+.get-app-body{padding:0 12px 12px}
+.get-app-body .install-steps{margin-top:0}
+.get-app-link-hint{margin:0 0 8px;font-size:13px;color:#405a76;background:#f6faff;border:1px dashed #b9cfe8;border-radius:10px;padding:9px 11px}.get-app-link-hint b{color:var(--primary-ink);overflow-wrap:anywhere}
+.get-app .android-download-meta{display:flex;align-items:center;justify-content:center;gap:4px;margin:10px 0 0;font-size:11.5px;color:#5a7491}.get-app .android-download-meta svg{color:var(--success)}
+.get-app-jump{display:inline-flex;align-items:center;gap:6px;margin:0 0 18px;padding:7px 12px;border-radius:999px;background:var(--primary-soft);color:var(--primary-ink);font-size:13px;font-weight:650;text-decoration:none}
+.get-app-jump:hover{background:#dce9fb}
+.more-grid+.get-app,.page-heading+.get-app{margin:0 0 24px;padding-top:0;border-top:0}
+.modal .get-app{margin:0;padding:0;border:0}.modal .get-app-head{display:none}
+.get-app-side{display:flex;align-items:center;gap:10px;width:100%;margin-bottom:12px;padding:11px 12px;border:1px solid #cfe0f5;border-radius:12px;background:var(--primary-soft);color:var(--primary-ink);font-size:13.5px;font-weight:650}
+.get-app-side:hover{background:#dce9fb}
+@media(min-width:681px) and (max-width:1100px){.get-app-side{justify-content:center;padding:10px 0}.get-app-side span{display:none}}

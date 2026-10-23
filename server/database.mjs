@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS money_store_date ON money_movements(store_id,created_
 CREATE TABLE IF NOT EXISTS cash_closings (id TEXT PRIMARY KEY,store_id TEXT NOT NULL REFERENCES stores(id),day TEXT NOT NULL,user_id TEXT NOT NULL REFERENCES users(id),expected_minor INTEGER NOT NULL,counted_minor INTEGER NOT NULL,variance_minor INTEGER NOT NULL,note TEXT NOT NULL,journal_count INTEGER NOT NULL,created_at TEXT NOT NULL,UNIQUE(store_id,day));
 CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS sessions_user_expiry ON sessions(user_id,expires_at);
-CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id), name TEXT NOT NULL, barcode TEXT, category TEXT NOT NULL, unit TEXT NOT NULL, price_minor INTEGER NOT NULL CHECK(price_minor>=0), cost_minor INTEGER NOT NULL CHECK(cost_minor>=0), stock_milli INTEGER NOT NULL, low_stock_milli INTEGER NOT NULL DEFAULT 5000, image_id TEXT, updated_at TEXT NOT NULL, UNIQUE(store_id,barcode), UNIQUE(id,store_id));
+CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id), name TEXT NOT NULL, barcode TEXT, category TEXT NOT NULL, unit TEXT NOT NULL, price_minor INTEGER NOT NULL CHECK(price_minor>=0), cost_minor INTEGER NOT NULL CHECK(cost_minor>=0), stock_milli INTEGER NOT NULL, low_stock_milli INTEGER NOT NULL DEFAULT 5000, image_id TEXT, updated_at TEXT NOT NULL, archived_at TEXT, UNIQUE(store_id,barcode), UNIQUE(id,store_id));
 CREATE TABLE IF NOT EXISTS stock_transfers (id TEXT PRIMARY KEY,source_store_id TEXT NOT NULL REFERENCES stores(id),target_store_id TEXT NOT NULL REFERENCES stores(id),source_product_id TEXT NOT NULL REFERENCES products(id),target_product_id TEXT NOT NULL REFERENCES products(id),quantity_milli INTEGER NOT NULL,value_minor INTEGER NOT NULL,note TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS transfers_source ON stock_transfers(source_store_id,created_at);
 CREATE INDEX IF NOT EXISTS transfers_target ON stock_transfers(target_store_id,created_at);
@@ -84,6 +84,8 @@ export async function openDatabase({url=process.env.DATABASE_URL,path=process.en
     await db.run(`ALTER TABLE products ADD COLUMN stock_value_minor ${pool?'BIGINT':'INTEGER'} NOT NULL DEFAULT 0`);
     await db.run('UPDATE products SET stock_value_minor=CAST(ROUND(cost_minor*stock_milli/1000.0) AS BIGINT)');
   }
+  if(!columns.some(c=>c.name==='archived_at'))await db.run('ALTER TABLE products ADD COLUMN archived_at TEXT');
+  if(!columns.some(c=>c.name==='archived_barcode'))await db.run('ALTER TABLE products ADD COLUMN archived_barcode TEXT');
   const lineColumns=pool?(await pool.query("SELECT column_name AS name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sale_lines'")).rows:sqlite.prepare('PRAGMA table_info(sale_lines)').all();
   if(!lineColumns.some(c=>c.name==='allocated_cost_minor'))await db.run(`ALTER TABLE sale_lines ADD COLUMN allocated_cost_minor ${pool?'BIGINT':'INTEGER'}`);
   // Adopt existing cashiers only when every membership belongs to one business.

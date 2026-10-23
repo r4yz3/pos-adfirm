@@ -20,5 +20,11 @@ try{await control.query(`CREATE SCHEMA ${schema}`);const url=new URL(process.env
  const device=await app.inject({method:'POST',url:'/api/installations',headers:{authorization:`Bearer ${token}`},payload:{installationId:randomUUID(),platform:'android',version:'0.3.0',storeId:'store-main'}});assert.equal(device.statusCode,200);
  const tracking=await app.inject({method:'GET',url:'/api/admin/tracking',headers:{authorization:`Bearer ${admin}`}});assert.equal(tracking.statusCode,200,tracking.body);assert.equal(tracking.json().metrics.registeredAndroid,1);assert.equal(tracking.json().metrics.subscribed,1);
  const business=await app.inject({method:'POST',url:'/api/businesses',headers:{authorization:`Bearer ${token}`},payload:{id:randomUUID(),businessName:'Postgres owner business',storeName:'New store',location:'Test'}});assert.equal(business.statusCode,200,business.body);
- assert.equal((await checkIntegrity(db)).ok,true);console.log('PASS: PostgreSQL schema, concurrency, duplicate delivery, inventory edits, product insights, native registration, manual plans, owner businesses and accounting integrity.');
+ assert.equal((await request('DELETE',`/products/${product.id}`,{id:randomUUID()})).statusCode,409);
+ assert.equal((await request('POST',`/products/${product.id}/count`,{id:randomUUID(),quantity:0,reason:'Stock count'})).statusCode,200);
+ const removed=await request('DELETE',`/products/${product.id}`,{id:randomUUID()});assert.equal(removed.statusCode,200,removed.body);assert.ok(removed.json().product.archivedAt);
+ assert.ok(!(await request('GET','/snapshot')).json().products.some(p=>p.id===product.id));assert.ok((await request('GET','/products/removed')).json().products.some(p=>p.id===product.id));
+ assert.equal((await request('POST',`/products/${product.id}/restore`,{id:randomUUID()})).statusCode,200);
+ assert.ok((await request('GET','/snapshot')).json().products.some(p=>p.id===product.id));
+ assert.equal((await checkIntegrity(db)).ok,true);console.log('PASS: PostgreSQL schema, concurrency, duplicate delivery, inventory edits, product removal/restore, product insights, native registration, manual plans, owner businesses and accounting integrity.');
 }finally{if(app)await app.close();if(db)await db.close();await control.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await control.end();}

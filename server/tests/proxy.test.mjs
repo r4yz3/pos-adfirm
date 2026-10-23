@@ -6,7 +6,7 @@ test('Android preflight permits required update methods only for configured orig
  const db=await openDatabase({path:':memory:',url:null});const app=await buildApp({db});
  try{
   const request=origin=>app.inject({method:'OPTIONS',url:'/api/stores/store-main/products/test',headers:{origin,'access-control-request-method':'PATCH','access-control-request-headers':'authorization,content-type'}});
-  const allowed=await request('https://localhost');assert.equal(allowed.statusCode,204);assert.equal(allowed.headers['access-control-allow-origin'],'https://localhost');assert.ok(allowed.headers['access-control-allow-methods'].includes('PATCH'));assert.ok(allowed.headers['access-control-allow-methods'].includes('PUT'));
+  const allowed=await request('https://localhost');assert.equal(allowed.statusCode,204);assert.equal(allowed.headers['access-control-allow-origin'],'https://localhost');assert.ok(allowed.headers['access-control-allow-methods'].includes('PATCH'));assert.ok(allowed.headers['access-control-allow-methods'].includes('PUT'));assert.ok(allowed.headers['access-control-allow-methods'].includes('DELETE'));
   const denied=await request('https://untrusted.example');assert.equal(denied.headers['access-control-allow-origin'],undefined);
  }finally{await app.close();await db.close();}
 });

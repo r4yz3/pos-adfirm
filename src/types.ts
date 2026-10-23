@@ -1,7 +1,7 @@
 export type User={id:string;name:string;email:string;role:'owner'|'cashier'|'superadmin'};
 export type Session={token:string;user:User;demo:boolean};
 export type Store={id:string;name:string;location:string;businessId:string;businessName:string;role:'owner'|'cashier'};
-export type Product={id:string;storeId:string;name:string;barcode:string|null;category:string;unit:string;priceMinor:number;costMinor?:number;stock:number;lowStock:number;imageId:string|null;updatedAt:string};
+export type Product={id:string;storeId:string;name:string;barcode:string|null;category:string;unit:string;priceMinor:number;costMinor?:number;stock:number;lowStock:number;imageId:string|null;updatedAt:string;archivedAt?:string|null;archivedBarcode?:string|null};
 export type Customer={id:string;name:string;phone:string;balanceMinor:number};
 export type SaleInput={id:string;lines:{productId:string;quantity:number;priceMinor:number}[];paymentMethod:'cash'|'wallet'|'credit';cashMinor:number;customerId?:string;walletVerified:boolean;occurredAt:string;offline:boolean};
 export type Dashboard={day:string;salesMinor:number;costMinor:number;expensesMinor:number;adjustmentMinor:number;profitMinor:number;saleCount:number;utangMinor:number;lowStock:Product[];recentSales:{id:string;totalMinor:number;paymentMethod:string;occurredAt:string;status:string}[];accounts:{account:string;balanceMinor:number}[]};

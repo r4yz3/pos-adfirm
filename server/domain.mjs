@@ -5,7 +5,7 @@ export const hash=value=>createHash('sha256').update(value).digest('hex');
 export class HttpError extends Error {constructor(status,message){super(message);this.statusCode=status;}}
 export function passwordHash(value){const salt=randomBytes(16).toString('hex');return `${salt}:${scryptSync(value,salt,64).toString('hex')}`;}
 export function passwordMatches(value,stored){const[salt,key]=stored.split(':');const actual=scryptSync(value,salt,64);const expected=Buffer.from(key,'hex');return expected.length===actual.length&&timingSafeEqual(expected,actual);}
-export function productView(p){return {id:p.id,storeId:p.store_id,name:p.name,barcode:p.barcode,category:p.category,unit:p.unit,priceMinor:p.price_minor,costMinor:p.cost_minor,stock:p.stock_milli/1000,lowStock:p.low_stock_milli/1000,imageId:p.image_id,updatedAt:p.updated_at};}
+export function productView(p){return {id:p.id,storeId:p.store_id,name:p.name,barcode:p.barcode,category:p.category,unit:p.unit,priceMinor:p.price_minor,costMinor:p.cost_minor,stock:p.stock_milli/1000,lowStock:p.low_stock_milli/1000,imageId:p.image_id,updatedAt:p.updated_at,archivedAt:p.archived_at||null,...(p.archived_at?{archivedBarcode:p.archived_barcode||null}:{})};}
 export function customerView(c){return {id:c.id,name:c.name,phone:c.phone,balanceMinor:c.balance_minor};}
 export async function journal(tx,storeId,sourceType,sourceId,entries,at=now()){
   if(entries.reduce((s,e)=>s+(e.debit||0)-(e.credit||0),0)!==0)throw new Error('Unbalanced journal');
@@ -27,7 +27,7 @@ export async function postSale(db,user,storeId,input,{recordedPriceReason}={}){
     const lines=[];const seen=new Set();let total=0,cost=0;
     for(const l of input.lines){
       if(seen.has(l.productId))throw new HttpError(400,'Combine duplicate product lines');seen.add(l.productId);
-      const p=await tx.get('SELECT * FROM products WHERE id=? AND store_id=?',[l.productId,storeId]);if(!p)throw new HttpError(400,'Product is unavailable in this store');
+      const p=await tx.get('SELECT * FROM products WHERE id=? AND store_id=? AND archived_at IS NULL',[l.productId,storeId]);if(!p)throw new HttpError(400,'Product is unavailable in this store');
       const quantity=Math.round(l.quantity*1000);if(Math.abs(l.quantity*1000-quantity)>.00001)throw new HttpError(400,'Quantity supports up to 3 decimals');
       if(!recordedPriceReason&&l.priceMinor!==p.price_minor)throw new HttpError(409,`${p.name}: price changed. Review queued sale.`);
       const amount=Math.round(l.priceMinor*quantity/1000),lineCost=p.unit==='service'?0:p.stock_milli>0&&quantity<=p.stock_milli?Math.round(p.stock_value_minor*quantity/p.stock_milli):Math.round(p.cost_minor*quantity/1000);
@@ -61,7 +61,7 @@ export async function dashboard(db,storeId,day){
   const net=await db.all("SELECT account,SUM(debit_minor-credit_minor) AS balance FROM journals WHERE store_id=? AND account IN ('sales','cost_of_sales') AND created_at>=? AND created_at<? GROUP BY account",[storeId,start,end]);
   sales.total=-Number(net.find(r=>r.account==='sales')?.balance||0);sales.cost=Number(net.find(r=>r.account==='cost_of_sales')?.balance||0);
   const debt=await db.get('SELECT COALESCE(SUM(balance_minor),0) AS total FROM customers WHERE store_id=?',[storeId]);
-  const low=await db.all("SELECT * FROM products WHERE store_id=? AND stock_milli<=low_stock_milli AND unit<>'service' ORDER BY stock_milli LIMIT 6",[storeId]);
+  const low=await db.all("SELECT * FROM products WHERE store_id=? AND archived_at IS NULL AND stock_milli<=low_stock_milli AND unit<>'service' ORDER BY stock_milli LIMIT 6",[storeId]);
   const recent=await db.all('SELECT id,total_minor,payment_method,occurred_at,status FROM sales WHERE store_id=? ORDER BY created_at DESC LIMIT 6',[storeId]);
   const accounts=await db.all('SELECT account,SUM(debit_minor-credit_minor) AS balance FROM journals WHERE store_id=? GROUP BY account',[storeId]);
   return {day,salesMinor:Number(sales.total),costMinor:Number(sales.cost),expensesMinor:Number(expense.total),adjustmentMinor:Number(adjustment.total),profitMinor:Number(sales.total)-Number(sales.cost)-Number(expense.total)+Number(adjustment.total),saleCount:Number(sales.count),utangMinor:Number(debt.total),lowStock:low.map(productView),recentSales:recent.map(s=>({id:s.id,totalMinor:s.total_minor,paymentMethod:s.payment_method,occurredAt:s.occurred_at,status:s.status})),accounts:accounts.map(a=>({account:a.account,balanceMinor:Number(a.balance)}))};

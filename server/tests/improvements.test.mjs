@@ -30,6 +30,33 @@ test('barcode equivalents are unique and images cannot cross stores',async()=>{
  const foreign=randomUUID();await db.run('INSERT INTO images VALUES(?,?,?,?,?,?,?)',[foreign,'store-market','other.webp',10,10,10,new Date().toISOString()]);assert.equal((await call('PATCH',`/products/${p.id}`,{imageId:foreign})).status,404);
  const empty=await product('Empty product',{stock:0});assert.equal((await call('PATCH',`/products/${empty.id}`,{unit:'kg',imageId:null})).status,200);
 });
+test('owner removes and restores a product without losing sale history',async()=>{
+ const p=await product('Removable product',{barcode:'987654321098',stock:2});
+ const saleResult=await call('POST','/sales',sale(p,{lines:[{productId:p.id,quantity:1,priceMinor:p.priceMinor}]}));assert.equal(saleResult.status,200);
+ const current=await db.get('SELECT updated_at FROM products WHERE id=?',[p.id]);
+ const blocked=await call('DELETE',`/products/${p.id}`,{id:randomUUID(),expectedUpdatedAt:current.updated_at});assert.equal(blocked.status,409);
+ const input={id:randomUUID(),expectedUpdatedAt:current.updated_at,writeOff:true};
+ assert.equal((await call('DELETE',`/products/${p.id}`,input,cashier)).status,403);
+ assert.equal((await call('DELETE',`/api/stores/store-market/products/${p.id}`,input)).status,404);
+ const removed=await call('DELETE',`/products/${p.id}`,input);assert.equal(removed.status,200,JSON.stringify(removed.body));assert.ok(removed.body.product.archivedAt);assert.equal(removed.body.product.stock,0);assert.equal(removed.body.product.barcode,null);assert.equal(removed.body.product.archivedBarcode,'0987654321098');
+ assert.equal((await call('DELETE',`/products/${p.id}`,input)).status,200);
+ assert.equal((await db.get('SELECT COUNT(*) AS n FROM stock_movements WHERE source_id=?',[input.id])).n,1);
+ assert.equal((await checkIntegrity(db)).ok,true);
+ assert.ok(!(await call('GET','/snapshot')).body.products.some(row=>row.id===p.id));
+ assert.ok((await call('GET','/products/removed')).body.products.some(row=>row.id===p.id));
+ assert.equal((await call('GET','/products/removed',undefined,cashier)).status,403);
+ assert.equal((await call('POST','/sales',sale(p))).status,400);
+ assert.equal((await call('POST',`/products/${p.id}/restock`,{id:randomUUID(),quantity:1,unitCostMinor:100,paymentMethod:'cash'})).status,404);
+ assert.equal((await call('PATCH',`/products/${p.id}`,{name:'Should not edit'})).status,404);
+ assert.equal((await call('GET',`/sales/${saleResult.body.id}`)).status,200);
+ const metrics=await call('GET',`/insights?from=${businessDay()}&to=${businessDay()}`);assert.ok(metrics.body.products.some(row=>row.id===p.id&&row.soldQuantity===1));
+ const restored=await call('POST',`/products/${p.id}/restore`,{id:randomUUID(),expectedUpdatedAt:removed.body.product.updatedAt});assert.equal(restored.status,200);assert.equal(restored.body.product.archivedAt,null);assert.equal(restored.body.product.barcode,'0987654321098');assert.equal(restored.body.barcodeCleared,false);
+ assert.ok((await call('GET','/snapshot')).body.products.some(row=>row.id===p.id));
+ const again=await call('DELETE',`/products/${p.id}`,{id:randomUUID(),expectedUpdatedAt:restored.body.product.updatedAt});assert.equal(again.status,200,JSON.stringify(again.body));
+ const replacement=await call('POST','/products',{id:randomUUID(),name:'Replacement product',barcode:'987654321098',category:'Other',unit:'pc',priceMinor:200,costMinor:100,stock:0,lowStock:0});assert.equal(replacement.status,200,JSON.stringify(replacement.body));
+ const cleared=await call('POST',`/products/${p.id}/restore`,{id:randomUUID(),expectedUpdatedAt:again.body.product.updatedAt});assert.equal(cleared.status,200);assert.equal(cleared.body.product.barcode,null);assert.equal(cleared.body.barcodeCleared,true);
+ assert.equal((await checkIntegrity(db)).ok,true);
+});
 test('owners create isolated businesses in-app with exactly-once retries',async()=>{
  const input={id:randomUUID(),businessName:'Owner second business',storeName:'First store',location:'Pasig'};
  assert.equal((await call('POST','/api/businesses',input,cashier)).status,403);assert.equal((await call('POST','/api/businesses',input,admin)).status,403);

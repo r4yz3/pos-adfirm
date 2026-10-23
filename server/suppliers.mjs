@@ -15,7 +15,7 @@ export async function receivePurchase(db,user,storeId,input){return command(db,u
  if(await tx.get('SELECT id FROM purchase_invoices WHERE store_id=? AND supplier_id=? AND reference=?',[storeId,input.supplierId,input.reference]))throw new HttpError(409,'This supplier invoice is already recorded');
  const seen=new Set(),lines=[];let total=0;
  for(const l of input.lines){if(seen.has(l.productId))throw new HttpError(400,'Combine duplicate products');seen.add(l.productId);
-  const product=await tx.get('SELECT * FROM products WHERE id=? AND store_id=?',[l.productId,storeId]);if(!product)throw new HttpError(404,'Product not found in this store');if(product.unit==='service')throw new HttpError(400,'Services do not have stock');if(product.stock_milli<0)throw new HttpError(409,'Resolve negative stock before receiving purchases');
+  const product=await tx.get('SELECT * FROM products WHERE id=? AND store_id=? AND archived_at IS NULL',[l.productId,storeId]);if(!product)throw new HttpError(404,'Product not found in this store');if(product.unit==='service')throw new HttpError(400,'Services do not have stock');if(product.stock_milli<0)throw new HttpError(409,'Resolve negative stock before receiving purchases');
   const qty=Math.round(l.quantity*1000);if(qty<1||Math.abs(l.quantity*1000-qty)>.00001)throw new HttpError(400,'Quantity supports 3 decimals');
   const value=Math.round(qty*l.unitCostMinor/1000);total+=value;lines.push({product,qty,value,unitCost:l.unitCostMinor});
  }

@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "POS - For Micro Business by Adfirm",
+  "short_name": "Adfirm POS",
+  "description": "POS - For Micro Business by Adfirm. Sales, stock and profit for your store.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f8fc",
+  "theme_color": "#f5f8fc",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

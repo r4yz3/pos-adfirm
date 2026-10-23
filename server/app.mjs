@@ -27,9 +27,16 @@ const saleSchema=z.object({id:z.uuid(),lines:z.array(z.object({productId:z.strin
 const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(120),barcode:z.string().trim().max(80).optional(),category:z.string().trim().min(1).max(50),unit:z.enum(['pc','sachet','bottle','can','pack','pouch','kg','service']),priceMinor:money,costMinor:money,stock:z.number().min(0).max(1000000),lowStock:z.number().min(0).max(1000000).default(5),imageId:z.uuid().optional()});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
-export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition(),signup=process.env.PUBLIC_SIGNUP!=='false'}={}){
+export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition(),signup=process.env.PUBLIC_SIGNUP!=='false',adminHosts=process.env.ADMIN_HOSTS,appHosts=process.env.APP_HOSTS}={}){
   const app=Fastify({logger,bodyLimit:1048576,trustProxy:process.env.TRUST_PROXY==='loopback'?['127.0.0.1','::1']:false});
   const origins=(process.env.CORS_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173,https://localhost,http://localhost').split(',');
+  // Each web address serves one side: store POS or platform admin. Unlisted hosts (local dev) serve both.
+  // Native apps call the API from a localhost origin and always count as the store POS.
+  const hostList=value=>String(value||'').split(',').map(h=>h.trim().toLowerCase()).filter(Boolean),admins=hostList(adminHosts),apps=hostList(appHosts);
+  const nativeOrigins=new Set(['https://localhost','capacitor://localhost','http://localhost']);
+  const surface=req=>{if(nativeOrigins.has(req.headers.origin))return 'app';const host=String(req.hostname||'').toLowerCase().replace(/:d+$/,'');return admins.includes(host)?'admin':apps.includes(host)?'app':'all';};
+  const appUrl=apps[0]?`https://${apps[0]}`:null,adminUrl=admins[0]?`https://${admins[0]}`:null;
+  const allowedOn=(req,user)=>{const side=surface(req);if(side==='admin'&&user.role!=='superadmin')throw new HttpError(403,appUrl?`Store accounts sign in at ${appUrl.slice(8)}.`:'Store accounts cannot sign in to the admin console.');if(side==='app'&&user.role==='superadmin')throw new HttpError(403,adminUrl?`Admin accounts sign in at ${adminUrl.slice(8)}.`:'Admin accounts sign in to the admin console.');};
   await app.register(cors,{origin:origins,methods:['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS']});
   await app.register(rateLimit,{max:180,timeWindow:'1 minute'});
   await app.register(multipart,{limits:{fileSize:10*1024*1024,files:1,fields:0}});
@@ -53,11 +60,12 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   registerPlatformRoutes(app,{db,auth,admin});
   async function issueSessionIn(tx,user){const token=randomBytes(32).toString('hex');await tx.run('INSERT INTO sessions VALUES(?,?,?)',[hash(token),user.id,new Date(Date.now()+12*3600000).toISOString()]);return {token,user:{id:user.id,name:user.name,email:user.email,role:user.role},demo};}
   async function findImage(req,imageId){const image=await db.get('SELECT * FROM images WHERE id=? AND store_id=?',[imageId,req.params.storeId]);if(!image)throw new HttpError(404,'Image not found');return image;}
-  app.get('/api/health',async()=>({status:'ok',database:db.kind,storage:storage.kind,demo,signup}));
+  app.get('/api/health',async req=>({status:'ok',database:db.kind,storage:storage.kind,demo,signup:signup&&surface(req)!=='admin',surface:surface(req),appUrl,adminUrl}));
   // Self-service owner sign-up: one transaction creates the owner, their business and first store, then signs them in.
   // Behind Cloudflare many visitors share an edge address, so the limit follows the visitor address Cloudflare reports.
   app.post('/api/auth/signup',{config:{rateLimit:{max:5,timeWindow:'1 hour',keyGenerator:req=>String(req.headers['cf-connecting-ip']||req.ip)}}},async req=>{
     if(!signup)throw new HttpError(403,'New accounts are not open right now. Contact Adfirm to get started.');
+    if(surface(req)==='admin')throw new HttpError(403,appUrl?`Create your store account at ${appUrl.slice(8)}.`:'Create store accounts in the POS app.');
     const b=z.object({id:z.uuid(),name:z.string().trim().min(2).max(100),email:z.email().max(254),password:z.string().min(12,'Use at least 12 characters for your password').max(128),businessName:z.string().trim().min(2).max(100),storeName:z.string().trim().min(2).max(100).optional(),location:z.string().trim().max(100).default(''),website:z.string().max(0).optional()}).parse(req.body);
     const email=b.email.trim().toLowerCase(),storeName=b.storeName||'Main store',bid=b.id,sid=id(),uid=id();
     return db.tx(async tx=>{
@@ -75,7 +83,7 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
       return issueSessionIn(tx,await tx.get('SELECT * FROM users WHERE id=?',[uid]));
     });
   });
-  app.post('/api/auth/login',{config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(req)=>{const body=z.object({email:z.email(),password:z.string().max(256)}).parse(req.body);const user=await db.get('SELECT * FROM users WHERE email=?',[body.email.toLowerCase()]);if(!user)throw new HttpError(401,'Incorrect email or password');return db.tx(async tx=>{const locked=await tx.get(`SELECT * FROM users WHERE id=?${db.kind==='postgres'?' FOR UPDATE':''}`,[user.id]);if(!passwordMatches(body.password,locked.password_hash))throw new HttpError(401,'Incorrect email or password');return issueSessionIn(tx,locked);});});
+  app.post('/api/auth/login',{config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(req)=>{const body=z.object({email:z.email(),password:z.string().max(256)}).parse(req.body);const user=await db.get('SELECT * FROM users WHERE email=?',[body.email.toLowerCase()]);if(!user)throw new HttpError(401,'Incorrect email or password');return db.tx(async tx=>{const locked=await tx.get(`SELECT * FROM users WHERE id=?${db.kind==='postgres'?' FOR UPDATE':''}`,[user.id]);if(!passwordMatches(body.password,locked.password_hash))throw new HttpError(401,'Incorrect email or password');allowedOn(req,locked);return issueSessionIn(tx,locked);});});
   if(demo)app.post('/api/auth/demo',async(req)=>{const body=z.object({role:z.enum(['owner','superadmin','cashier'])}).parse(req.body);return db.tx(async tx=>{const user=await tx.get(`SELECT * FROM users WHERE role=? LIMIT 1${db.kind==='postgres'?' FOR UPDATE':''}`,[body.role]);return issueSessionIn(tx,user);});});
   app.get('/api/auth/sessions',{preHandler:auth},async req=>{const row=await db.get('SELECT COUNT(*) AS count FROM sessions WHERE user_id=? AND expires_at>?',[req.user.id,now()]);return {activeSessions:Number(row.count)};});
   app.post('/api/auth/password',{preHandler:auth,config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async req=>secureAccount(db,req.user,req.headers.authorization.slice(7),z.object({currentPassword:z.string().min(1).max(256),newPassword:z.string().min(12).max(128)}).parse(req.body),{changePassword:true}));
@@ -189,6 +197,6 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
     const b=z.object({businessName:z.string().trim().min(2).max(100),storeName:z.string().trim().min(2).max(100),location:z.string().trim().max(100).default(''),ownerName:z.string().trim().min(2).max(100),email:z.email(),password:z.string().min(12).max(128)}).parse(req.body);const bid=id(),sid=id(),uid=id();
     await db.tx(async tx=>{await tx.run('INSERT INTO businesses VALUES(?,?)',[bid,b.businessName]);await tx.run('INSERT INTO stores VALUES(?,?,?,?)',[sid,bid,b.storeName,b.location]);await tx.run('INSERT INTO users VALUES(?,?,?,?,?)',[uid,b.email.toLowerCase(),b.ownerName,passwordHash(b.password),'owner']);await tx.run('INSERT INTO memberships VALUES(?,?,?)',[uid,sid,'owner']);await audit(tx,req.user.id,'business.created',sid,{businessId:bid});});return {businessId:bid,storeId:sid};
   });
-  if(existsSync(resolve('dist/index.html'))){await app.register(fastifyStatic,{root:resolve('dist'),wildcard:false});app.setNotFoundHandler((req,reply)=>req.url.startsWith('/api/')?reply.code(404).send({error:'Endpoint not found'}):reply.sendFile('index.html'));}
+  if(existsSync(resolve('dist/index.html'))){await app.register(fastifyStatic,{root:resolve('dist'),wildcard:false,setHeaders:(res,path)=>{const file=path.replaceAll('\\','/');res.header('Cache-Control',file.includes('/assets/')?'public, max-age=31536000, immutable':'no-cache');}});app.setNotFoundHandler((req,reply)=>req.url.startsWith('/api/')?reply.code(404).send({error:'Endpoint not found'}):req.url.startsWith('/assets/')?reply.code(404).send({error:'File not found'}):reply.sendFile('index.html'));}
   return app;
 }

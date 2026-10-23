@@ -137,3 +137,48 @@ body,.main-content{background:var(--page)}
 .admin-mobile-tabs button{color:var(--admin-text);border-radius:10px;scroll-snap-align:start}
 .admin-mobile-tabs button:hover{background:var(--admin-raised);color:#fff}
 .admin-mobile-tabs .selected{background:#fff;color:var(--admin-bg);font-weight:700}
+
+/* Sign in and create account */
+.login-story{background:linear-gradient(160deg,#eaf2fd 0%,#dce9fb 100%)}
+.login-story-main .eyebrow{color:var(--primary);font-weight:700}
+.login-story h1{color:var(--ink)}.login-story h1>span{color:var(--primary)}
+.login-story p{color:#405a76}.login-story>small{color:#5a7491}
+.login-story:after{background:#cfe0f8}
+.login-form>.eyebrow,.signup>.eyebrow{display:block;font-size:11px;letter-spacing:1.6px;color:var(--primary);font-weight:700;margin-bottom:12px}
+.login-form>h2,.signup>h2{font-size:30px;letter-spacing:-1.1px;color:var(--ink);font-weight:800;line-height:1.2}
+.login-form>p,.signup>p{font-size:15px;color:var(--muted);margin:10px 0 26px}
+.login-form .field,.signup .field{margin:18px 0;color:#2c4664;font-weight:600;font-size:14px}
+.login-form form>.button,.signup form>.button{width:100%;margin-top:8px;min-height:50px;font-size:15px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:30px;border-radius:13px;background:#edf2f8;border:1px solid var(--line)}
+.auth-tabs button{border:0;background:transparent;border-radius:10px;min-height:42px;font-size:14px;font-weight:650;color:#4f6781;transition:background .15s,color .15s,box-shadow .15s}
+.auth-tabs button:hover{color:var(--ink)}
+.auth-tabs button.selected{background:#fff;color:var(--primary-ink);box-shadow:0 1px 3px #0f2a4a1f}
+.password-input,.input-icon{position:relative;display:block;margin-top:8px}
+.password-input input{padding-right:48px}
+.input-icon>svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#7c93ab;pointer-events:none}
+.input-icon input{padding-left:42px}
+.password-field input,.input-icon input{margin:0}
+.password-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:38px;height:38px;display:grid;place-items:center;border:0;border-radius:9px;background:transparent;color:#5d7690}
+.password-toggle:hover{background:var(--primary-soft);color:var(--primary-ink)}
+.password-meter{display:flex;align-items:center;gap:10px;margin:-6px 0 16px}
+.password-meter>span{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;width:120px;flex-shrink:0}
+.password-meter i{height:5px;border-radius:3px;background:#dde6f0}
+.password-meter small{font-size:13px;color:var(--muted)}
+.password-meter.score-1 i:nth-child(-n+1){background:#d9534a}.password-meter.score-1 small{color:#b2392f}
+.password-meter.score-2 i:nth-child(-n+2){background:#e0a030}
+.password-meter.score-3 i:nth-child(-n+3){background:#3f8fd8}
+.password-meter.score-4 i{background:var(--success)}.password-meter.score-4 small{color:var(--success)}
+.signup-steps{list-style:none;display:flex;gap:8px;margin:0 0 22px;padding:0}
+.signup-steps li{flex:1;display:flex;align-items:center;gap:9px;padding-top:12px;border-top:3px solid #dde6f0;font-size:13px;font-weight:600;color:#6b8199}
+.signup-steps li>span{width:24px;height:24px;flex-shrink:0;display:grid;place-items:center;border-radius:50%;background:#e8eef5;color:#5d7690;font-size:12px;font-weight:700}
+.signup-steps li.current{border-top-color:var(--primary);color:var(--ink)}.signup-steps li.current>span{background:var(--primary);color:#fff}
+.signup-steps li.done{border-top-color:var(--success);color:var(--ink)}.signup-steps li.done>span{background:var(--success);color:#fff}
+.field .optional{font-weight:500;color:#7a8fa6;font-size:12px;margin-left:4px}
+.signup-actions{display:grid;grid-template-columns:auto 1fr;gap:10px;margin-top:8px}.signup-actions .button{min-height:50px;font-size:15px}
+.signup-trap{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.signup-perks{list-style:none;padding:0;margin:24px 0 0;display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px}
+.signup-perks li{display:flex;align-items:center;gap:6px;font-size:13px;color:#405a76}.signup-perks svg{color:var(--success)}
+.auth-switch{margin:22px 0 0;text-align:center;font-size:14px;color:var(--muted)}.auth-switch .text-button{font-size:14px;min-height:0;padding:0;margin:0}
+.login-security{font-size:12px;color:#5a7491;margin-top:30px}
+.demo-entry>span{color:#5a7491;font-size:11px}
+@media(max-width:600px){.login-mobile-brand{margin-bottom:34px}.auth-tabs{margin-bottom:24px}.login-form>h2,.signup>h2{font-size:27px}}

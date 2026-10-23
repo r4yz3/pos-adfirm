@@ -27,7 +27,7 @@ const saleSchema=z.object({id:z.uuid(),lines:z.array(z.object({productId:z.strin
 const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(120),barcode:z.string().trim().max(80).optional(),category:z.string().trim().min(1).max(50),unit:z.enum(['pc','sachet','bottle','can','pack','pouch','kg','service']),priceMinor:money,costMinor:money,stock:z.number().min(0).max(1000000),lowStock:z.number().min(0).max(1000000).default(5),imageId:z.uuid().optional()});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
-export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition()}={}){
+export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition(),signup=process.env.PUBLIC_SIGNUP!=='false'}={}){
   const app=Fastify({logger,bodyLimit:1048576,trustProxy:process.env.TRUST_PROXY==='loopback'?['127.0.0.1','::1']:false});
   const origins=(process.env.CORS_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173,https://localhost,http://localhost').split(',');
   await app.register(cors,{origin:origins,methods:['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS']});
@@ -53,7 +53,28 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   registerPlatformRoutes(app,{db,auth,admin});
   async function issueSessionIn(tx,user){const token=randomBytes(32).toString('hex');await tx.run('INSERT INTO sessions VALUES(?,?,?)',[hash(token),user.id,new Date(Date.now()+12*3600000).toISOString()]);return {token,user:{id:user.id,name:user.name,email:user.email,role:user.role},demo};}
   async function findImage(req,imageId){const image=await db.get('SELECT * FROM images WHERE id=? AND store_id=?',[imageId,req.params.storeId]);if(!image)throw new HttpError(404,'Image not found');return image;}
-  app.get('/api/health',async()=>({status:'ok',database:db.kind,storage:storage.kind,demo}));
+  app.get('/api/health',async()=>({status:'ok',database:db.kind,storage:storage.kind,demo,signup}));
+  // Self-service owner sign-up: one transaction creates the owner, their business and first store, then signs them in.
+  // Behind Cloudflare many visitors share an edge address, so the limit follows the visitor address Cloudflare reports.
+  app.post('/api/auth/signup',{config:{rateLimit:{max:5,timeWindow:'1 hour',keyGenerator:req=>String(req.headers['cf-connecting-ip']||req.ip)}}},async req=>{
+    if(!signup)throw new HttpError(403,'New accounts are not open right now. Contact Adfirm to get started.');
+    const b=z.object({id:z.uuid(),name:z.string().trim().min(2).max(100),email:z.email().max(254),password:z.string().min(12,'Use at least 12 characters for your password').max(128),businessName:z.string().trim().min(2).max(100),storeName:z.string().trim().min(2).max(100).optional(),location:z.string().trim().max(100).default(''),website:z.string().max(0).optional()}).parse(req.body);
+    const email=b.email.trim().toLowerCase(),storeName=b.storeName||'Main store',bid=b.id,sid=id(),uid=id();
+    return db.tx(async tx=>{
+      const existing=await tx.get('SELECT * FROM users WHERE email=?',[email]);
+      if(existing){
+        // A retried request (same id, same password) resumes the account it already created instead of failing.
+        const retry=await tx.get("SELECT s.id FROM stores s JOIN memberships m ON m.store_id=s.id WHERE s.business_id=? AND m.user_id=? AND m.role='owner'",[bid,existing.id]);
+        if(retry&&passwordMatches(b.password,existing.password_hash))return issueSessionIn(tx,existing);
+        throw new HttpError(409,'An account with this email already exists. Sign in instead.');
+      }
+      if(await tx.get('SELECT id FROM businesses WHERE id=?',[bid]))throw new HttpError(409,'Request ID already used');
+      await tx.run('INSERT INTO businesses VALUES(?,?)',[bid,b.businessName]);await tx.run('INSERT INTO stores VALUES(?,?,?,?)',[sid,bid,storeName,b.location]);
+      await tx.run('INSERT INTO users VALUES(?,?,?,?,?)',[uid,email,b.name,passwordHash(b.password),'owner']);await tx.run('INSERT INTO memberships VALUES(?,?,?)',[uid,sid,'owner']);
+      await audit(tx,uid,'business.created',sid,{businessId:bid,selfService:true,signup:true});
+      return issueSessionIn(tx,await tx.get('SELECT * FROM users WHERE id=?',[uid]));
+    });
+  });
   app.post('/api/auth/login',{config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(req)=>{const body=z.object({email:z.email(),password:z.string().max(256)}).parse(req.body);const user=await db.get('SELECT * FROM users WHERE email=?',[body.email.toLowerCase()]);if(!user)throw new HttpError(401,'Incorrect email or password');return db.tx(async tx=>{const locked=await tx.get(`SELECT * FROM users WHERE id=?${db.kind==='postgres'?' FOR UPDATE':''}`,[user.id]);if(!passwordMatches(body.password,locked.password_hash))throw new HttpError(401,'Incorrect email or password');return issueSessionIn(tx,locked);});});
   if(demo)app.post('/api/auth/demo',async(req)=>{const body=z.object({role:z.enum(['owner','superadmin','cashier'])}).parse(req.body);return db.tx(async tx=>{const user=await tx.get(`SELECT * FROM users WHERE role=? LIMIT 1${db.kind==='postgres'?' FOR UPDATE':''}`,[body.role]);return issueSessionIn(tx,user);});});
   app.get('/api/auth/sessions',{preHandler:auth},async req=>{const row=await db.get('SELECT COUNT(*) AS count FROM sessions WHERE user_id=? AND expires_at>?',[req.user.id,now()]);return {activeSessions:Number(row.count)};});

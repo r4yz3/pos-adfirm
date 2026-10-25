@@ -43,13 +43,13 @@
     "@fontsource-variable/manrope": "5.3.0",
     "dexie": "4.4.6",
     "fastify": "5.12.7",
-    "html5-qrcode": "2.3.8",
     "lucide-react": "^0.468.0",
     "pg": "^8.16.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "sharp": "0.35.5",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zxing-wasm": "3.1.4"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3",

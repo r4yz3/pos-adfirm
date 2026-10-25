@@ -28,6 +28,15 @@ const saleSchema=z.object({id:z.uuid(),lines:z.array(z.object({productId:z.strin
 const productSchema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(120),barcode:z.string().trim().max(80).optional(),category:z.string().trim().min(1).max(50),unit:z.enum(['pc','sachet','bottle','can','pack','pouch','kg','service']),priceMinor:money,costMinor:money,stock:z.number().min(0).max(1000000),lowStock:z.number().min(0).max(1000000).default(5),imageId:z.uuid().optional()});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
+// Signed-in devices stay signed in for 30 days after their last use.
+const SESSION_MS=30*86400000,SESSION_TOUCH_MS=5*60000;
+function deviceName(req){
+ if(/^(https|capacitor):\/\/localhost$/.test(String(req?.headers?.origin||'')))return 'Android app';
+ const ua=String(req?.headers?.['user-agent']||'');
+ const os=/iPhone/.test(ua)?'iPhone':/iPad/.test(ua)?'iPad':/Android/.test(ua)?'Android':/Windows/.test(ua)?'Windows':/Mac OS X/.test(ua)?'Mac':/Linux|CrOS/.test(ua)?'Linux':'device';
+ const browser=/Edg\//.test(ua)?'Edge':/OPR\//.test(ua)?'Opera':/SamsungBrowser/.test(ua)?'Samsung Internet':/CriOS|Chrome\//.test(ua)?'Chrome':/FxiOS|Firefox\//.test(ua)?'Firefox':/Safari\//.test(ua)?'Safari':'Browser';
+ return `${browser} on ${os}`;
+}
 export async function buildApp({db,demo=false,logger=false,storage=imageStorage(),vision=imageRecognition(),signup=process.env.PUBLIC_SIGNUP!=='false',adminHosts=process.env.ADMIN_HOSTS,appHosts=process.env.APP_HOSTS,downloadsDir=process.env.DOWNLOADS_DIR||resolve('downloads')}={}){
   const app=Fastify({logger,bodyLimit:1048576,trustProxy:process.env.TRUST_PROXY==='loopback'?['127.0.0.1','::1']:false});
   const origins=(process.env.CORS_ORIGINS||'http://localhost:5173,http://127.0.0.1:5173,https://localhost,http://localhost').split(',');
@@ -39,7 +48,11 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   const appUrl=apps[0]?`https://${apps[0]}`:null,adminUrl=admins[0]?`https://${admins[0]}`:null;
   const allowedOn=(req,user)=>{const side=surface(req);if(side==='admin'&&user.role!=='superadmin')throw new HttpError(403,appUrl?`Store accounts sign in at ${appUrl.slice(8)}.`:'Store accounts cannot sign in to the admin console.');if(side==='app'&&user.role==='superadmin')throw new HttpError(403,adminUrl?`Admin accounts sign in at ${adminUrl.slice(8)}.`:'Admin accounts sign in to the admin console.');};
   await app.register(cors,{origin:origins,methods:['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS']});
-  await app.register(rateLimit,{max:180,timeWindow:'1 minute'});
+  // Limits follow each signed-in device (its session), or the visitor's real address behind Cloudflare,
+  // so several devices in one store never share a budget.
+  const visitor=req=>String(req.headers['cf-connecting-ip']||req.ip);
+  const clientKey=req=>{const header=String(req.headers.authorization||'');return header.startsWith('Bearer ')?'session:'+hash(header.slice(7)).slice(0,32):'ip:'+visitor(req);};
+  await app.register(rateLimit,{max:300,timeWindow:'1 minute',keyGenerator:clientKey});
   await app.register(multipart,{limits:{fileSize:10*1024*1024,files:1,fields:0}});
   app.addHook('onSend',async(req,reply,payload)=>{reply.header('X-Content-Type-Options','nosniff').header('Referrer-Policy','no-referrer');if(req.url.startsWith('/api/')&&!req.url.includes('/file?'))reply.header('Cache-Control','no-store');return payload;});
   app.setErrorHandler((e,request,reply)=>{
@@ -50,8 +63,11 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   });
   async function auth(req){
     const token=req.headers.authorization?.replace(/^Bearer /,'');if(!token)throw new HttpError(401,'Sign in to continue');
-    const user=await db.get('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?',[hash(token),now()]);
-    if(!user)throw new HttpError(401,'Session expired. Sign in again');req.user=user;
+    const tokenHash=hash(token),user=await db.get('SELECT u.*,s.last_seen_at AS session_seen_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?',[tokenHash,now()]);
+    if(!user)throw new HttpError(401,'You were signed out on this device. Sign in again.');
+    // A device in use stays signed in: each use pushes expiry out again, with at most one write every few minutes.
+    if(!user.session_seen_at||Date.now()-Date.parse(user.session_seen_at)>SESSION_TOUCH_MS)await db.tx(tx=>tx.run('UPDATE sessions SET expires_at=?,last_seen_at=? WHERE token_hash=?',[new Date(Date.now()+SESSION_MS).toISOString(),now(),tokenHash]));
+    delete user.session_seen_at;req.user=user;req.sessionHash=tokenHash;
   }
   async function storeAccess(req,{owner=false}={}){
     await auth(req);const membership=await db.get('SELECT * FROM memberships WHERE user_id=? AND store_id=?',[req.user.id,req.params.storeId]);
@@ -59,7 +75,7 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
   }
   async function admin(req){await auth(req);if(req.user.role!=='superadmin')throw new HttpError(403,'Super admin access required');}
   registerPlatformRoutes(app,{db,auth,admin});
-  async function issueSessionIn(tx,user){const token=randomBytes(32).toString('hex');await tx.run('INSERT INTO sessions VALUES(?,?,?)',[hash(token),user.id,new Date(Date.now()+12*3600000).toISOString()]);return {token,user:{id:user.id,name:user.name,email:user.email,role:user.role},demo};}
+  async function issueSessionIn(tx,user,req){const token=randomBytes(32).toString('hex'),at=now();await tx.run('INSERT INTO sessions(token_hash,user_id,expires_at,device,created_at,last_seen_at) VALUES(?,?,?,?,?,?)',[hash(token),user.id,new Date(Date.now()+SESSION_MS).toISOString(),deviceName(req),at,at]);return {token,user:{id:user.id,name:user.name,email:user.email,role:user.role},demo};}
   async function findImage(req,imageId){const image=await db.get('SELECT * FROM images WHERE id=? AND store_id=?',[imageId,req.params.storeId]);if(!image)throw new HttpError(404,'Image not found');return image;}
   // Android app downloads: android.json (written by scripts/android-build.mjs) names the current APK in downloadsDir.
   // It is read per request so publishing a new APK needs no restart.
@@ -81,21 +97,23 @@ export async function buildApp({db,demo=false,logger=false,storage=imageStorage(
       if(existing){
         // A retried request (same id, same password) resumes the account it already created instead of failing.
         const retry=await tx.get("SELECT s.id FROM stores s JOIN memberships m ON m.store_id=s.id WHERE s.business_id=? AND m.user_id=? AND m.role='owner'",[bid,existing.id]);
-        if(retry&&passwordMatches(b.password,existing.password_hash))return issueSessionIn(tx,existing);
+        if(retry&&passwordMatches(b.password,existing.password_hash))return issueSessionIn(tx,existing,req);
         throw new HttpError(409,'An account with this email already exists. Sign in instead.');
       }
       if(await tx.get('SELECT id FROM businesses WHERE id=?',[bid]))throw new HttpError(409,'Request ID already used');
       await tx.run('INSERT INTO businesses VALUES(?,?)',[bid,b.businessName]);await tx.run('INSERT INTO stores VALUES(?,?,?,?)',[sid,bid,storeName,b.location]);
       await tx.run('INSERT INTO users VALUES(?,?,?,?,?)',[uid,email,b.name,passwordHash(b.password),'owner']);await tx.run('INSERT INTO memberships VALUES(?,?,?)',[uid,sid,'owner']);
       await audit(tx,uid,'business.created',sid,{businessId:bid,selfService:true,signup:true});
-      return issueSessionIn(tx,await tx.get('SELECT * FROM users WHERE id=?',[uid]));
+      return issueSessionIn(tx,await tx.get('SELECT * FROM users WHERE id=?',[uid]),req);
     });
   });
-  app.post('/api/auth/login',{config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(req)=>{const body=z.object({email:z.email(),password:z.string().max(256)}).parse(req.body);const user=await db.get('SELECT * FROM users WHERE email=?',[body.email.toLowerCase()]);if(!user)throw new HttpError(401,'Incorrect email or password');return db.tx(async tx=>{const locked=await tx.get(`SELECT * FROM users WHERE id=?${db.kind==='postgres'?' FOR UPDATE':''}`,[user.id]);if(!passwordMatches(body.password,locked.password_hash))throw new HttpError(401,'Incorrect email or password');allowedOn(req,locked);return issueSessionIn(tx,locked);});});
-  if(demo)app.post('/api/auth/demo',async(req)=>{const body=z.object({role:z.enum(['owner','superadmin','cashier'])}).parse(req.body);return db.tx(async tx=>{const user=await tx.get(`SELECT * FROM users WHERE role=? LIMIT 1${db.kind==='postgres'?' FOR UPDATE':''}`,[body.role]);return issueSessionIn(tx,user);});});
+  app.post('/api/auth/login',{config:{rateLimit:{max:10,timeWindow:'1 minute',keyGenerator:visitor}}},async(req)=>{const body=z.object({email:z.email(),password:z.string().max(256)}).parse(req.body);const user=await db.get('SELECT * FROM users WHERE email=?',[body.email.toLowerCase()]);if(!user)throw new HttpError(401,'Incorrect email or password');return db.tx(async tx=>{const locked=await tx.get(`SELECT * FROM users WHERE id=?${db.kind==='postgres'?' FOR UPDATE':''}`,[user.id]);if(!passwordMatches(body.password,locked.password_hash))throw new HttpError(401,'Incorrect email or password');allowedOn(req,locked);return issueSessionIn(tx,locked,req);});});
+  if(demo)app.post('/api/auth/demo',async(req)=>{const body=z.object({role:z.enum(['owner','superadmin','cashier'])}).parse(req.body);return db.tx(async tx=>{const user=await tx.get(`SELECT * FROM users WHERE role=? LIMIT 1${db.kind==='postgres'?' FOR UPDATE':''}`,[body.role]);return issueSessionIn(tx,user,req);});});
   app.get('/api/auth/sessions',{preHandler:auth},async req=>{const row=await db.get('SELECT COUNT(*) AS count FROM sessions WHERE user_id=? AND expires_at>?',[req.user.id,now()]);return {activeSessions:Number(row.count)};});
   app.post('/api/auth/password',{preHandler:auth,config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async req=>secureAccount(db,req.user,req.headers.authorization.slice(7),z.object({currentPassword:z.string().min(1).max(256),newPassword:z.string().min(12).max(128)}).parse(req.body),{changePassword:true}));
   app.post('/api/auth/revoke-others',{preHandler:auth,config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async req=>secureAccount(db,req.user,req.headers.authorization.slice(7),z.object({currentPassword:z.string().min(1).max(256)}).parse(req.body)));
+  app.get('/api/auth/devices',{preHandler:auth},async req=>({devices:(await db.all('SELECT token_hash,device,created_at,last_seen_at FROM sessions WHERE user_id=? AND expires_at>? ORDER BY last_seen_at DESC',[req.user.id,now()])).map(s=>({id:s.token_hash,device:s.device||'Earlier sign-in',signedInAt:s.created_at,lastActiveAt:s.last_seen_at,current:s.token_hash===req.sessionHash}))}));
+  app.delete('/api/auth/devices/:deviceId',{preHandler:auth},async req=>{if(req.params.deviceId===req.sessionHash)throw new HttpError(400,'Use Sign out to end this device.');return db.tx(async tx=>{const session=await tx.get('SELECT device FROM sessions WHERE token_hash=? AND user_id=?',[req.params.deviceId,req.user.id]);if(!session)throw new HttpError(404,'That device is already signed out.');await tx.run('DELETE FROM sessions WHERE token_hash=? AND user_id=?',[req.params.deviceId,req.user.id]);await audit(tx,req.user.id,'account.device_signed_out',null,{device:session.device});return {ok:true};});});
   app.post('/api/auth/logout',{preHandler:auth},async req=>{await db.tx(tx=>tx.run('DELETE FROM sessions WHERE token_hash=?',[hash(req.headers.authorization.slice(7))]));return {ok:true};});
   app.get('/api/me',{preHandler:auth},async req=>({id:req.user.id,name:req.user.name,email:req.user.email,role:req.user.role,demo}));
   app.get('/api/stores',{preHandler:auth},async req=>({stores:await db.all('SELECT s.id,s.name,s.location,COALESCE(x.sales_enabled,1) AS "salesEnabled",s.business_id AS "businessId",b.name AS "businessName",m.role FROM stores s LEFT JOIN store_settings x ON x.store_id=s.id JOIN memberships m ON m.store_id=s.id JOIN businesses b ON b.id=s.business_id WHERE m.user_id=? ORDER BY s.name',[req.user.id])}));

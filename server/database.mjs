@@ -86,6 +86,9 @@ export async function openDatabase({url=process.env.DATABASE_URL,path=process.en
   }
   if(!columns.some(c=>c.name==='archived_at'))await db.run('ALTER TABLE products ADD COLUMN archived_at TEXT');
   if(!columns.some(c=>c.name==='archived_barcode'))await db.run('ALTER TABLE products ADD COLUMN archived_barcode TEXT');
+  // Sessions remember which device they belong to and when it was last used.
+  const sessionColumns=pool?(await pool.query("SELECT column_name AS name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sessions'")).rows:sqlite.prepare('PRAGMA table_info(sessions)').all();
+  for(const name of ['device','created_at','last_seen_at'])if(!sessionColumns.some(c=>c.name===name))await db.run(`ALTER TABLE sessions ADD COLUMN ${name} TEXT`);
   const lineColumns=pool?(await pool.query("SELECT column_name AS name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sale_lines'")).rows:sqlite.prepare('PRAGMA table_info(sale_lines)').all();
   if(!lineColumns.some(c=>c.name==='allocated_cost_minor'))await db.run(`ALTER TABLE sale_lines ADD COLUMN allocated_cost_minor ${pool?'BIGINT':'INTEGER'}`);
   // Adopt existing cashiers only when every membership belongs to one business.

@@ -10,8 +10,11 @@ export class ApiError extends Error{constructor(public status:number,message:str
 export async function api<T>(path:string,session:Session|null,options:RequestInit={}):Promise<T>{
  const base=apiBase();
  const headers=new Headers(options.headers);if(session)headers.set('Authorization',`Bearer ${session.token}`);if(options.body&&!(options.body instanceof FormData))headers.set('Content-Type','application/json');
- const response=await fetch(base+path,{...options,headers,signal:options.signal||AbortSignal.timeout(15000)});
- if(!response.ok){const body=await response.json().catch(()=>({error:'Request failed'}));throw new ApiError(response.status,body.error||'Request failed');}return response.json();
+ let response:Response;
+ // Slow mobile connections get 30 seconds; network failures become plain-language errors with status 0.
+ try{response=await fetch(base+path,{...options,headers,signal:options.signal||AbortSignal.timeout(30000)});}
+ catch(e){if(options.signal?.aborted)throw e;throw new ApiError(0,(e as Error)?.name==='TimeoutError'?'The connection is slow right now. Check your internet and try again.':'Can’t reach the server. Check your internet connection.');}
+ if(!response.ok){const body=await response.json().catch(()=>({error:'Request failed'}));if(response.status===401&&session&&path!=='/auth/logout')window.dispatchEvent(new CustomEvent('adfirm-session-ended',{detail:session.token}));throw new ApiError(response.status,response.status===429?'Too many requests at once. Wait a moment and try again.':body.error||'Request failed');}return response.json();
 }
 const db=new Dexie('adfirm-pos-v1') as Dexie&{snapshots:EntityTable<{key:string;data:Snapshot},'key'>;outbox:EntityTable<QueueItem,'id'>;receipts:EntityTable<Receipt,'id'>;images:EntityTable<{key:string;scope:string;blob:Blob;touched:number},'key'>};
 db.version(1).stores({snapshots:'key',outbox:'id,userId,storeId,createdAt',receipts:'id,userId,storeId,occurredAt'});
@@ -28,7 +31,7 @@ export async function snapshot(session:Session,storeId:string):Promise<{data:Sna
 let flushing:Promise<void>|null=null;
 export async function flush(session:Session){
  if(flushing){await flushing;return;}
- flushing=(async()=>{for(const item of await pending(session)){try{await api(`/stores/${item.storeId}/sales`,session,{method:'POST',body:JSON.stringify(item.input)});await db.transaction('rw',db.outbox,db.receipts,async()=>{await db.outbox.delete(item.id);await db.receipts.update(item.id,{synced:true});});}catch(e){if(e instanceof ApiError&&e.status>0&&e.status<500){await db.outbox.update(item.id,{error:e.message});continue;}break;}}})();
+ flushing=(async()=>{for(const item of await pending(session)){try{await api(`/stores/${item.storeId}/sales`,session,{method:'POST',body:JSON.stringify(item.input)});await db.transaction('rw',db.outbox,db.receipts,async()=>{await db.outbox.delete(item.id);await db.receipts.update(item.id,{synced:true});});}catch(e){if(e instanceof ApiError&&e.status>0&&e.status<500&&e.status!==401&&e.status!==429){await db.outbox.update(item.id,{error:e.message});continue;}break;}}})();
  try{await flushing;}finally{flushing=null;}
 }
 export async function saveSale(session:Session,storeId:string,input:QueueItem['input'],receipt:Receipt){

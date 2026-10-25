@@ -7,6 +7,9 @@ export function passwordHash(value){const salt=randomBytes(16).toString('hex');r
 export function passwordMatches(value,stored){const[salt,key]=stored.split(':');const actual=scryptSync(value,salt,64);const expected=Buffer.from(key,'hex');return expected.length===actual.length&&timingSafeEqual(expected,actual);}
 export function productView(p){return {id:p.id,storeId:p.store_id,name:p.name,barcode:p.barcode,category:p.category,unit:p.unit,priceMinor:p.price_minor,costMinor:p.cost_minor,stock:p.stock_milli/1000,lowStock:p.low_stock_milli/1000,imageId:p.image_id,updatedAt:p.updated_at,archivedAt:p.archived_at||null,...(p.archived_at?{archivedBarcode:p.archived_barcode||null}:{})};}
 export function customerView(c){return {id:c.id,name:c.name,phone:c.phone,balanceMinor:c.balance_minor};}
+// Stock value changed outside a sale or purchase. Stock the owner adds (setup, corrections, extra found in a count)
+// is owner capital, not income; stock lost, damaged, expired or written down is a loss that reduces profit.
+export function stockValueEntries(delta){return delta>=0?[{account:'inventory',debit:delta},{account:'equity',credit:delta}]:[{account:'inventory_adjustment',debit:-delta},{account:'inventory',credit:-delta}];}
 export async function journal(tx,storeId,sourceType,sourceId,entries,at=now()){
   if(entries.reduce((s,e)=>s+(e.debit||0)-(e.credit||0),0)!==0)throw new Error('Unbalanced journal');
   for(const e of entries)if((e.debit||e.credit)>0)await tx.run('INSERT INTO journals(id,store_id,source_type,source_id,account,debit_minor,credit_minor,created_at) VALUES(?,?,?,?,?,?,?,?)',[id(),storeId,sourceType,sourceId,e.account,e.debit||0,e.credit||0,at]);

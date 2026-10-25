@@ -317,3 +317,31 @@ body,.main-content{background:var(--page)}
 .devices li .button{margin:0;flex-shrink:0}
 .device-icon{width:38px;height:38px;flex-shrink:0;display:grid;place-items:center;border-radius:11px;background:var(--primary-soft);color:var(--primary)}
 .devices li.current .device-icon{background:var(--primary);color:#fff}
+
+/* Phone checkout: a bar above the bottom menu keeps the total and Pay in reach; the cart opens as a sheet. */
+.checkout-bar,.cart-sheet-handle,.cart-backdrop{display:none}
+@media(max-width:680px){
+ .sell-layout>.cart{display:none}
+ .with-checkout .main-content{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
+ .checkout-bar{display:flex;align-items:center;gap:8px;position:fixed;left:12px;right:12px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:30;padding:8px;border-radius:18px;background:var(--ink);box-shadow:0 12px 30px #0f2a4a52;animation:checkout-in .22s ease-out}
+ .checkout-summary{flex:1;min-width:0;display:flex;align-items:center;gap:11px;border:0;background:none;color:#fff;text-align:left;padding:4px 6px}
+ .checkout-count{min-width:34px;height:34px;padding:0 8px;border-radius:11px;display:grid;place-items:center;background:#ffffff1f;font-weight:800;font-size:15px}
+ .checkout-text{flex:1;min-width:0}.checkout-text small{display:block;font-size:12px;color:#b9cbe2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .checkout-text b{display:block;font-family:Manrope,sans-serif;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums;animation:checkout-bump .35s ease-out}
+ .checkout-summary>svg{color:#b9cbe2;flex-shrink:0}
+ .checkout-pay{display:inline-flex;align-items:center;gap:8px;min-height:50px;padding:0 20px;border:0;border-radius:13px;background:#fff;color:var(--ink);font-size:16px;font-weight:800}
+ .checkout-pay:active:not(:disabled){transform:translateY(1px)}.checkout-pay:disabled{opacity:.5}
+ .cart-backdrop{display:block;position:fixed;inset:0;z-index:55;background:#0b16267a;animation:fade-in .2s ease-out}
+ .sell-layout>.cart.sheet-open{display:flex;flex-direction:column;position:fixed;left:0;right:0;top:auto;bottom:0;z-index:60;max-height:86dvh;margin:0;border-radius:24px 24px 0 0;padding:6px 18px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -12px 40px #0f2a4a40;animation:sheet-up .25s cubic-bezier(.2,.8,.2,1)}
+ .cart.sheet-open .cart-sheet-handle{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;border:0;background:none;padding:6px 0 4px;color:#7c93ab}
+ .cart-sheet-handle span{width:42px;height:5px;border-radius:3px;background:#cfdbe8}
+ .cart.sheet-open .cart-lines{flex:0 1 auto;min-height:0;max-height:none;overflow:auto}
+ .cart-sheet-up .checkout-bar{display:none}
+ .cart-sheet-up .toast{bottom:auto;top:calc(14px + env(safe-area-inset-top))}
+ .with-checkout .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
+}
+@keyframes checkout-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes checkout-bump{0%{transform:scale(1.08)}100%{transform:none}}
+@keyframes sheet-up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.checkout-bar,.checkout-text b,.sell-layout>.cart.sheet-open,.cart-backdrop{animation:none}}

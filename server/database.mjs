@@ -86,6 +86,8 @@ export async function openDatabase({url=process.env.DATABASE_URL,path=process.en
   }
   if(!columns.some(c=>c.name==='archived_at'))await db.run('ALTER TABLE products ADD COLUMN archived_at TEXT');
   if(!columns.some(c=>c.name==='archived_barcode'))await db.run('ALTER TABLE products ADD COLUMN archived_barcode TEXT');
+  // Stock added outside a purchase used to count as profit; it is owner capital (see stockValueEntries).
+  await db.run("UPDATE journals SET account='equity' WHERE account='inventory_adjustment' AND credit_minor>0 AND debit_minor=0 AND source_type IN ('product_adjustment','stock_count')");
   // Sessions remember which device they belong to and when it was last used.
   const sessionColumns=pool?(await pool.query("SELECT column_name AS name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sessions'")).rows:sqlite.prepare('PRAGMA table_info(sessions)').all();
   for(const name of ['device','created_at','last_seen_at'])if(!sessionColumns.some(c=>c.name===name))await db.run(`ALTER TABLE sessions ADD COLUMN ${name} TEXT`);

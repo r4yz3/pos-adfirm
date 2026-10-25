@@ -1,5 +1,5 @@
 import {command} from './finance.mjs';
-import {HttpError,now,journal,audit,productView,id} from './domain.mjs';
+import {HttpError,now,journal,audit,productView,id,stockValueEntries} from './domain.mjs';
 export const canonicalBarcode=value=>{const code=String(value||'').trim();return /^\d{12}$/.test(code)?'0'+code:code;};
 export async function updateProduct(db,user,storeId,productId,input){
  return command(db,user,storeId,`product.edit:${productId}`,input,async(tx,key)=>{
@@ -20,7 +20,7 @@ export async function updateProduct(db,user,storeId,productId,input){
   if(inventoryChanged&&(value<0||value>100000000))throw new HttpError(400,'Inventory value exceeds the limit');
   const delta=value-p.stock_value_minor,at=now();
   await tx.run('UPDATE products SET name=?,barcode=?,category=?,unit=?,price_minor=?,cost_minor=?,stock_milli=?,low_stock_milli=?,image_id=?,stock_value_minor=?,updated_at=? WHERE id=? AND store_id=?',[next.name,next.barcode,next.category,next.unit,next.price_minor,next.cost_minor,next.stock_milli,next.low_stock_milli,next.image_id,value,at,p.id,storeId]);
-  if(inventoryChanged){await tx.run('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?)',[id(),storeId,p.id,next.stock_milli-p.stock_milli,'product_adjustment',key,at]);await journal(tx,storeId,'product_adjustment',key,delta>=0?[{account:'inventory',debit:delta},{account:'inventory_adjustment',credit:delta}]:[{account:'inventory_adjustment',debit:-delta},{account:'inventory',credit:-delta}],at);}
+  if(inventoryChanged){await tx.run('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?)',[id(),storeId,p.id,next.stock_milli-p.stock_milli,'product_adjustment',key,at]);await journal(tx,storeId,'product_adjustment',key,stockValueEntries(delta),at);}
   await audit(tx,user.id,'product.updated',storeId,{productId:p.id,reason:input.reason||'',inventoryAdjustmentMinor:delta,before:{name:p.name,barcode:p.barcode,category:p.category,unit:p.unit,priceMinor:p.price_minor,costMinor:p.cost_minor,stockMilli:p.stock_milli,imageId:p.image_id},after:{name:next.name,barcode:next.barcode,category:next.category,unit:next.unit,priceMinor:next.price_minor,costMinor:next.cost_minor,stockMilli:next.stock_milli,imageId:next.image_id}});
   return {product:productView(await tx.get('SELECT * FROM products WHERE id=?',[p.id]))};
  });
@@ -36,7 +36,7 @@ export async function archiveProduct(db,user,storeId,productId,input){
   if(remaining&&!input.writeOff)throw new HttpError(409,'This product still has stock. Confirm the stock write-off to remove it.');
   const at=now(),writtenOff=-Number(p.stock_value_minor);
   // Remaining stock leaves inventory through the same adjustment path as a stock count, so ledgers stay balanced.
-  if(remaining){await tx.run('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?)',[id(),storeId,p.id,-p.stock_milli,'count',key,at]);await journal(tx,storeId,'stock_count',key,writtenOff>=0?[{account:'inventory',debit:writtenOff},{account:'inventory_adjustment',credit:writtenOff}]:[{account:'inventory_adjustment',debit:-writtenOff},{account:'inventory',credit:-writtenOff}],at);await audit(tx,user.id,'stock.counted',storeId,{productId:p.id,quantity:0,reason:'Product removed',adjustmentMinor:writtenOff});}
+  if(remaining){await tx.run('INSERT INTO stock_movements VALUES(?,?,?,?,?,?,?)',[id(),storeId,p.id,-p.stock_milli,'count',key,at]);await journal(tx,storeId,'stock_count',key,stockValueEntries(writtenOff),at);await audit(tx,user.id,'stock.counted',storeId,{productId:p.id,quantity:0,reason:'Product removed',adjustmentMinor:writtenOff});}
   await tx.run('UPDATE products SET archived_at=?,archived_barcode=barcode,barcode=NULL,stock_milli=0,stock_value_minor=0,updated_at=? WHERE id=? AND store_id=?',[at,at,productId,storeId]);
   await audit(tx,user.id,'product.archived',storeId,{productId,name:p.name,barcode:p.barcode,writtenOffMilli:p.stock_milli,writtenOffMinor:-writtenOff});
   return {product:productView(await tx.get('SELECT * FROM products WHERE id=?',[productId]))};
